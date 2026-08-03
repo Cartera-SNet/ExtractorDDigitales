@@ -1683,6 +1683,15 @@ function mostrarResultado(data, loteId){
   cambiarVista('resultados');
   archivosSeleccionados = [];
   renderLista();
+
+  // Descarga automática del ZIP apenas el lote termina -- así no hay que
+  // acordarse de darle clic manual cada vez. Se dispara con o sin
+  // errores/detenido (el resultado parcial también sirve), pero solo si
+  // de verdad se generó algo -- si no hubo ni un solo documento
+  // reconocido, no hay ZIP útil que descargar.
+  if (resumenes.length > 0) {
+    document.getElementById('linkZip').click();
+  }
 }
 </script>
 

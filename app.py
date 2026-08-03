@@ -997,13 +997,34 @@ def descargar_zip(lote_id):
     if not carpeta.exists():
         return "Lote no encontrado", 404
 
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for item in carpeta.iterdir():
-            zf.write(item, arcname=item.name)
-    buffer.seek(0)
+    # El ZIP se arma DIRECTO EN DISCO, no en memoria (io.BytesIO) — los
+    # lotes grandes pueden generar cientos de MB de PDFs (hasta ~400MB en
+    # la práctica). Armarlo en RAM significaba tener esos cientos de MB
+    # completos en memoria antes de poder mandar el primer byte al
+    # navegador — en un servidor con memoria limitada (ej. un plan chico
+    # de hosting) eso puede tumbar el proceso justo al intentar descargar
+    # el resultado. Escribiendo a un archivo temporal en disco, el uso de
+    # RAM se queda chico sin importar cuánto pese el resultado final, y
+    # Flask manda el archivo al navegador en pedazos (streaming), no de
+    # un solo golpe.
+    ruta_zip = carpeta / "_completo.zip"
+    if ruta_zip.exists():
+        ruta_zip.unlink()  # se rearma siempre de cero, para no servir un zip viejo si el lote se reanudó con más archivos
+    try:
+        with zipfile.ZipFile(ruta_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in carpeta.iterdir():
+                if item == ruta_zip:
+                    continue
+                zf.write(item, arcname=item.name)
+    except Exception as e:
+        try:
+            ruta_zip.unlink()
+        except Exception:
+            pass
+        return jsonify({"error": f"No se pudo armar el ZIP: {e}"}), 500
+
     return send_file(
-        buffer, as_attachment=True,
+        ruta_zip, as_attachment=True,
         download_name=f"{_nombre_zip_por_empresa(lote_id)}.zip",
         mimetype="application/zip",
     )
