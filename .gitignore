@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+
+# Carpetas de trabajo -- se crean solas al arrancar, nunca deben subirse
+# al repo (contienen datos reales de casos/pacientes)
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+estado/

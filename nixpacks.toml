@@ -1,0 +1,6 @@
+# Tesseract no es un paquete de Python (pytesseract solo es el "puente"
+# que lo llama) — es un programa del sistema operativo, así que hay que
+# decirle a Railway que lo instale a nivel de sistema (como haría un
+# `apt install`), no de pip.
+[phases.setup]
+aptPkgs = ["tesseract-ocr", "tesseract-ocr-spa"]

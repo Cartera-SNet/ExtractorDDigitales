@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<title>Extractor de Documentos Digitales — v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+  :root {
+    --bg-body: #f5f7fc;
+    --bg-card: #ffffff;
+    --accent: #4f46e5;
+    --accent-light: #ede9fe;
+    --accent-hover: #4338ca;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --error: #ef4444;
+    --error-light: #fee2e2;
+    --warning: #f59e0b;
+    --warning-light: #fef3c7;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-body);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .header-icon {
+    width: 38px; height: 38px; border-radius: 8px;
+    background: var(--accent-light); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+  header h1 { font-size: 0.95rem; font-weight: 700; }
+  header p { font-size: 0.68rem; color: var(--text-secondary); }
+  .badge-version {
+    margin-left: auto; font-size: 0.65rem; font-weight: 600; color: var(--accent);
+    background: var(--accent-light); padding: 3px 10px; border-radius: 20px;
+  }
+
+  /* ── Layout principal ── */
+  main {
+    flex: 1 1 auto;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px 20px;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 12px;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-header {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.7rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: #f8fafc;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    flex: 0 0 auto;
+  }
+  .card-header .icon {
+    width: 20px; height: 20px; background: var(--accent-light); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; font-size: 0.62rem; color: var(--accent);
+  }
+  .card-body { padding: 10px 12px; min-height: 0; }
+
+  /* ── Robot ── */
+  .robot-card .card-body { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 10px 12px; }
+  #robotSvg { display: block; overflow: visible; transition: filter .4s; }
+  #robotSvg.r-idle    { animation: rfloat 3.5s ease-in-out infinite; }
+  #robotSvg.r-loading { animation: rfloat 2.0s ease-in-out infinite; }
+  #robotSvg.r-done    { animation: rcelebrate .45s ease-in-out infinite; }
+  #robotSvg.r-error   { animation: rdroop 1.2s ease-in-out infinite; }
+  @keyframes rfloat     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  @keyframes rdroop     { 0%,100%{transform:rotate(0deg)} 50%{transform:rotate(2.5deg)} }
+  @keyframes rcelebrate { 0%,100%{transform:translateY(0) rotate(0)} 30%{transform:translateY(-7px) rotate(-5deg)} 70%{transform:translateY(-7px) rotate(5deg)} }
+
+  @keyframes apulse  { 0%,100%{opacity:1} 50%{opacity:.25} }
+  @keyframes ablinkS { 0%,100%{opacity:1} 50%{opacity:.08} }
+  #robotSvg.r-idle    #antennaDot { animation: apulse 2.5s ease-in-out infinite; fill:#6366f1; }
+  #robotSvg.r-loading #antennaDot { animation: apulse 1.0s ease-in-out infinite; fill:#f59e0b; }
+  #robotSvg.r-done    #antennaDot { animation: apulse .8s ease-in-out infinite; fill:#10b981; }
+  #robotSvg.r-error   #antennaDot { animation: apulse .7s ease-in-out infinite; fill:#ef4444; }
+
+  @keyframes eyeglow { from{opacity:.55} to{opacity:1} }
+  #robotSvg.r-idle    #eyeL, #robotSvg.r-idle    #eyeR { fill:#6366f1; }
+  #robotSvg.r-loading #eyeL, #robotSvg.r-loading #eyeR { animation: eyeglow .9s ease-in-out infinite alternate; fill:#f59e0b; }
+  #robotSvg.r-done    #eyeL, #robotSvg.r-done    #eyeR { fill:#10b981; }
+  #robotSvg.r-error   #eyeL, #robotSvg.r-error   #eyeR { animation: eyeglow .5s ease-in-out infinite alternate; fill:#ef4444; }
+
+  @keyframes scanS { 0%,100%{transform:translateX(-2px)} 50%{transform:translateX(2px)} }
+  #robotSvg.r-loading #pupilL, #robotSvg.r-loading #pupilR { animation: scanS 1.6s ease-in-out infinite; }
+
+  @keyframes blink { 0%,88%,100%{opacity:0} 91%,96%{opacity:1} }
+  #robotSvg.r-idle .eyelid { animation: blink 4.5s ease-in-out infinite; }
+
+  #robotMsg { font-size: 0.72rem; font-weight: 600; color: var(--text-primary); text-align: center; }
+  #timerDisplay { font-size: 0.66rem; color: var(--text-secondary); font-family: 'SF Mono','Cascadia Code',monospace; }
+
+  /* ── Dropzone ── */
+  .zona-drop {
+    border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px 8px;
+    text-align: center; cursor: pointer; transition: .15s; background: #fafbfe;
+  }
+  .zona-drop:hover, .zona-drop.arrastrando { border-color: var(--accent); background: var(--accent-light); }
+  .zona-drop input { display: none; }
+  .zona-drop i { font-size: 1.3rem; color: var(--accent); margin-bottom: 4px; display:block; }
+  .zona-drop p { font-size: 0.68rem; color: var(--text-secondary); }
+  .zona-drop p.principal { font-weight: 600; color: var(--text-primary); font-size: 0.72rem; }
+
+  .lista-archivos { max-height: 92px; overflow-y: auto; font-size: 0.68rem; color: var(--text-secondary); margin-top: 8px; }
+  .lista-archivos div { padding: 3px 4px; border-bottom: 1px solid #f1f5f9; display:flex; align-items:center; gap:5px; }
+  .lista-archivos i { color: var(--accent); font-size: 0.7rem; }
+
+  .btn {
+    background: var(--accent); color: #fff; border: none; padding: 9px 16px;
+    border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    margin-top: 10px; width: 100%; transition: .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.secundario { background: #fff; color: var(--accent); border: 1px solid var(--accent); width:auto; margin-top:0; }
+  .btn.secundario.btn-ancho { width: 100%; margin-top: 6px; }
+  .btn.peligro { background: #fff; color:#dc2626; border:1px solid #dc2626; width:auto; margin-top:6px; }
+  .btn.peligro:hover { background:#fef2f2; }
+  .btn.secundario.btn-ancho:hover { background: var(--accent-light); }
+
+  /* ── Botón principal de 3 estados (Listo / Ejecutando / Pausado) ──
+     Estructura FIJA (un <i> + un <span>, nunca se reemplaza el HTML
+     interno) — solo cambian la clase del ícono, el texto y la clase de
+     color del botón. Así nunca se duplica ni desalinea el ícono al
+     pasar de un estado a otro. */
+  .btn-proceso {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-proceso i {
+    font-size: 0.78rem; width: 14px; text-align: center; flex-shrink: 0; line-height: 1;
+  }
+  .btn-proceso.estado-ejecutando { background: #dc2626; }
+  .btn-proceso.estado-ejecutando:hover:not(:disabled) { background: #b91c1c; }
+  .btn-proceso.estado-pausado { background: #d97706; }
+  .btn-proceso.estado-pausado:hover:not(:disabled) { background: #b45309; }
+  .nota-boton {
+    font-size: 0.62rem; color: var(--text-secondary); text-align: center;
+    margin: 4px 0 0; padding: 0;
+  }
+
+  /* ── Fila de acciones secundarias (compacta, centrada, misma altura) ── */
+  .fila-acciones-secundarias {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .btn-chip {
+    flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+    gap: 5px; background: #fff; color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px;
+    font-size: 0.66rem; font-weight: 600; line-height: 1.15; cursor: pointer;
+    transition: .15s; text-align: center; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .btn-chip i { font-size: 0.72rem; color: var(--text-secondary); flex-shrink: 0; }
+  .btn-chip:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  .btn-chip:hover:not(:disabled) i { color: var(--accent); }
+  .btn-chip:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-chip.chip-peligro { color: #b91c1c; border-color: #fecaca; }
+  .btn-chip.chip-peligro:hover:not(:disabled) { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
+  .btn-chip.chip-peligro:hover:not(:disabled) i { color: #dc2626; }
+  .btn-chip.chip-peligro i { color: #dc2626; }
+
+  /* ── Stats ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stat-box { background: #f8fafc; border-radius: 8px; padding: 7px 4px; text-align: center; }
+  .stat-box .num { font-size: 1.05rem; font-weight: 700; line-height: 1; }
+  .stat-box .lbl { font-size: 0.58rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+  .stat-box.ok .num { color: var(--success); }
+  .stat-box.err .num { color: var(--error); }
+
+  .progreso-barra { height: 7px; background: #e5edf5; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .progreso-relleno { height: 100%; background: linear-gradient(90deg,#6366f1,var(--accent)); width: 0%; transition: width .3s; }
+  .progreso-texto { font-size: 0.62rem; color: var(--text-secondary); margin-top: 4px; display:flex; justify-content:space-between; }
+
+  /* ── Panel principal (tabs log / resultados) ── */
+  .panel-principal { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; }
+  .panel-principal .card-log { height: 340px; flex-shrink: 0; }
+  .tabs { display: flex; gap: 4px; }
+  .tab-btn {
+    font-size: 0.65rem; font-weight: 600; padding: 3px 11px; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff; color: var(--text-secondary); cursor: pointer;
+  }
+  .tab-btn.activo { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab-acciones { display:flex; gap:4px; margin-left:auto; }
+  .tab-acciones button {
+    font-size: 0.6rem; padding: 3px 8px; border-radius: 6px; border: 1px solid #cbd5e1;
+    background: #fff; color: #334155; cursor: pointer;
+  }
+
+  .vista { flex: 1 1 auto; min-height: 0; display: none; flex-direction: column; }
+  .vista.activa { display: flex; }
+
+  /* ── Terminal de log ── */
+  .log-terminal {
+    background: #0b1120; border-radius: 10px; font-family: 'SF Mono','Cascadia Code',monospace;
+    font-size: 0.72rem; line-height: 1.5; flex: 1 1 auto; overflow-y: auto; padding: 8px 4px; min-height: 0;
+  }
+  .log-terminal::-webkit-scrollbar { width: 5px; }
+  .log-terminal::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  .log-linea { padding: 1px 9px; border-left: 3px solid transparent; color: #cbd5e6; white-space: pre-wrap; word-break: break-word; }
+  .log-linea.info  { border-left-color: #3b82f6; color: #b9c7db; }
+  .log-linea.ok    { border-left-color: #10b981; color: #a7f3d0; }
+  .log-linea.warn  { border-left-color: #f59e0b; color: #fed7aa; }
+  .log-linea.error { border-left-color: #ef4444; color: #fecaca; }
+  .log-linea .hora { opacity: .5; margin-right: 5px; }
+
+  /* ── Resultados ── */
+  .tabla-wrap { flex: 1 1 auto; overflow: auto; min-height: 0; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.72rem; table-layout: fixed; }
+  th, td { border-bottom: 1px solid #eef1f6; padding: 8px 10px; text-align: left; vertical-align: middle; }
+  td { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+  th {
+    background: #f8fafc; color: var(--text-secondary); position: sticky; top: 0;
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: .4px; font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr:nth-child(even) { background: #fafbfd; }
+  tbody tr:hover { background: var(--accent-light); }
+
+  col.col-archivo  { width: 15%; }
+  col.col-factura  { width: 9%; }
+  col.col-doc      { width: 9%; }
+  col.col-estado   { width: 9%; }
+  col.col-obs      { width: 32%; }
+  col.col-pdf      { width: 12%; }
+
+  td.celda-archivo { font-weight: 600; overflow-wrap: break-word; white-space: normal; }
+  td.celda-obs { white-space: normal; overflow-wrap: break-word; color: var(--text-secondary); font-size: 0.68rem; line-height: 1.4; }
+  td.celda-doc { text-align: center; }
+
+  .pill-doc {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 0.66rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .pill-doc.si { background: var(--success-light); color: #067a4e; }
+  .pill-doc.no { background: #f1f5f9; color: #94a3b8; }
+  .pill-doc .pag { font-weight: 500; opacity: .8; }
+
+  .pill-estado {
+    display: inline-block; font-size: 0.64rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: .3px;
+  }
+  tr.completo .pill-estado { background: var(--success-light); color: #067a4e; }
+  tr.incompleto .pill-estado { background: var(--warning-light); color: #92620a; }
+  tr.error .pill-estado, tr.sindocumentos .pill-estado { background: var(--error-light); color: #b91c1c; }
+
+  a.link-descarga {
+    display: inline-flex; align-items: center; gap: 4px; color: var(--accent); text-decoration: none;
+    font-size: 0.66rem; font-weight: 600; background: var(--accent-light); padding: 4px 9px; border-radius: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  a.link-descarga:hover { background: #ddd6fe; }
+  .sin-pdf { color: var(--text-secondary); font-size: 0.65rem; }
+
+  .acciones-descarga { display: flex; gap: 8px; padding-top: 10px; flex: 0 0 auto; }
+
+  .oculto { display: none !important; }
+  .empty-state { flex:1 1 auto; display:flex; align-items:center; justify-content:center; color: var(--text-secondary); font-size:0.75rem; text-align:center; padding: 20px; }
+  .empty-state i { font-size: 1.6rem; color: var(--border); display:block; margin-bottom:8px; }
+
+  /* ── Menú de usuario (header) ── */
+  .user-menu { display:flex; align-items:center; gap:8px; font-size:0.68rem; color: var(--text-secondary); position:relative; }
+  .user-menu .empresa-actual { display:flex; align-items:center; gap:5px; background:#f8fafc; border:1px solid var(--border); padding:4px 10px; border-radius:20px; cursor:pointer; }
+  .user-menu .empresa-actual:hover { border-color: var(--accent); }
+  .user-menu button.btn-salir { background:none; border:none; color: var(--text-secondary); cursor:pointer; font-size:0.85rem; padding:4px; border-radius:6px; }
+  .user-menu button.btn-salir:hover { background:#fee2e2; color: var(--error); }
+
+  .dropdown-empresas {
+    position:absolute; top:calc(100% + 6px); right:0; width:260px; background:#fff;
+    border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+    z-index:100; overflow:hidden;
+  }
+  .dropdown-empresas .cab { background:var(--accent-light); color:var(--accent-hover); font-size:0.68rem; font-weight:700; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; }
+  .dropdown-empresas .cab button { background:none; border:none; color:var(--accent-hover); cursor:pointer; }
+  .dropdown-empresas input { width:100%; border:none; border-bottom:1px solid var(--border); padding:7px 10px; font-size:0.68rem; outline:none; }
+  .dropdown-empresas .lista { max-height:200px; overflow-y:auto; }
+  .dropdown-empresas .item {
+    display:flex; align-items:center; gap:6px; padding:7px 10px; font-size:0.68rem; cursor:pointer;
+    border-bottom:1px solid #f1f5f9; color: var(--text-primary);
+  }
+  .dropdown-empresas .item:hover { background:#f8fafc; }
+  .dropdown-empresas .item.activa { background: var(--accent-light); }
+  .dropdown-empresas .item .cod { background: var(--accent-light); color:var(--accent); font-weight:700; padding:1px 6px; border-radius:5px; font-size:0.6rem; flex-shrink:0; }
+  .dropdown-empresas .item .nombre { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ── Tabs de modo (Subir PDF / Buscar por factura-caso) ── */
+  .modo-tabs { display:flex; gap:4px; margin-bottom:10px; }
+  .modo-tabs button {
+    flex:1; font-size:0.66rem; font-weight:600; padding:6px 4px; border-radius:7px;
+    border:1px solid var(--border); background:#fff; color: var(--text-secondary); cursor:pointer;
+  }
+  .modo-tabs button.activo { background: var(--accent); color:#fff; border-color: var(--accent); }
+  .panel-modo.oculto { display:none; }
+
+  textarea.campo-casos, input.campo-casos {
+    width:100%; border:1.5px solid var(--border); border-radius:8px; padding:8px 10px;
+    font-size:0.72rem; font-family: inherit; color: var(--text-primary);
+  }
+  textarea.campo-casos { resize: vertical; }
+  textarea.campo-casos:focus, input.campo-casos:focus { outline:none; border-color: var(--accent); }
+
+  /* ── Checklist de documentos ── */
+  details.grupo-checklist { border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; }
+  details.grupo-checklist summary {
+    padding:7px 10px; font-size:0.68rem; font-weight:700; color: var(--text-primary);
+    cursor:pointer; background:#f8fafc; list-style:none; display:flex; align-items:center; justify-content:space-between;
+  }
+  details.grupo-checklist summary::-webkit-details-marker { display:none; }
+  details.grupo-checklist summary .contador { font-weight:500; color: var(--text-secondary); font-size:0.6rem; }
+  .checklist-lista { max-height:145px; overflow-y:auto; padding:6px 10px; display:grid; grid-template-columns: 1fr 1fr; gap:2px 14px; align-content:start; }
+  .check-item { display:flex; align-items:center; gap:6px; font-size:0.68rem; color: var(--text-primary); cursor:pointer; padding:2px 0; }
+  .check-item input { accent-color: var(--accent); cursor:pointer; }
+  .check-item.no-impl { color: var(--text-secondary); }
+  .buscador-checklist {
+    width:100%; border:1px solid var(--border); border-radius:6px; padding:5px 8px;
+    font-size:0.65rem; margin:0 10px 4px; width:calc(100% - 20px); outline:none;
+  }
+  .buscador-checklist:focus { border-color: var(--accent); }
+  .toggle-ocultar-p {
+    display:flex; align-items:center; gap:6px; font-size:0.65rem; color: var(--text-secondary);
+    cursor:pointer; user-select:none; margin-left:auto; font-weight:400;
+  }
+  .toggle-ocultar-p input { accent-color: var(--accent); cursor:pointer; }
+  .ocultar-pendientes .no-impl { display:none !important; }
+  .tag-pronto { font-size:0.55rem; background:#f1f5f9; color:#94a3b8; padding:1px 6px; border-radius:10px; margin-left:auto; white-space:nowrap; flex-shrink:0; }
+
+  .aviso-checklist {
+    background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-size:0.65rem;
+    padding:6px 10px; border-radius:6px; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  }
+  .observacion-rutas {
+    font-size:0.62rem; color:var(--text-secondary); background:#f8fafc; border-left:3px solid var(--accent);
+    padding:5px 8px; margin:2px 10px 6px; border-radius:4px; display:flex; gap:5px; align-items:flex-start;
+  }
+  .sin-datos { font-size:0.65rem; color:var(--text-secondary); padding:4px 0; }
+  .resumen-explicacion { font-size:0.65rem; color:var(--text-secondary); padding:8px 4px 4px; margin:0; }
+  .lista-resumen { flex:1 1 auto; overflow-y:auto; padding:4px; }
+  .fila-resumen {
+    display:flex; align-items:center; gap:8px; padding:6px 8px; font-size:0.72rem;
+    border-bottom:1px solid var(--border);
+  }
+  .fila-resumen .caso { font-weight:600; color: var(--text-primary); min-width:90px; }
+  .fila-resumen.ok .badge-ruta { background: var(--success-light); color: var(--success); padding:2px 8px; border-radius:10px; font-size:0.68rem; }
+  .fila-resumen.err .badge-error { color: var(--error); }
+
+  /* ── Pestaña "URLs de búsqueda" ── */
+  .fila-url {
+    padding:8px 8px; font-size:0.72rem; border-bottom:1px solid var(--border);
+  }
+  .fila-url .fila-url-cabecera {
+    display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;
+  }
+  .fila-url .fila-url-info { display:flex; align-items:center; gap:8px; min-width:0; }
+  .fila-url .caso { font-weight:600; color: var(--text-primary); white-space:nowrap; }
+  .fila-url .badge-ruta-url {
+    background:#f1f5f9; color: var(--text-secondary); padding:2px 8px; border-radius:10px;
+    font-size:0.65rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px;
+  }
+  .fila-url .btn-copiar-url {
+    flex-shrink:0; background:#fff; border:1px solid var(--border); color: var(--text-secondary);
+    border-radius:6px; padding:3px 8px; font-size:0.62rem; font-weight:600; cursor:pointer; transition:.15s;
+  }
+  .fila-url .btn-copiar-url:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  .fila-url .btn-copiar-url.copiado { background: var(--success-light); border-color: var(--success); color: var(--success); }
+  .fila-url .caja-url {
+    font-family: 'SF Mono','Cascadia Code',monospace; font-size:0.64rem; color: var(--text-secondary);
+    background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:5px 7px;
+    word-break: break-all; user-select: all;
+  }
+  .check-maestro { border-bottom:1px dashed var(--border); padding:4px 10px 6px; margin-bottom:2px; font-size:0.65rem; }
+  .check-maestro i { font-style:normal; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-icon"><img src="/static/logo.png" alt="Logo" style="width:100%; height:100%; object-fit:contain; border-radius:8px;"></div>
+  <div>
+    <h1>Extractor de Documentos Digitales</h1>
+    <p>Identifica y unifica Documentos Digitales</p>
+  </div>
+  <span class="badge-version">{{ etiqueta_entorno }}</span>
+  <div class="user-menu">
+    <span class="empresa-actual" id="btnAbrirEmpresas" onclick="toggleDropdownEmpresas()">
+      <i class="fa-solid fa-building"></i> <span id="empresaActualTexto">Cargando...</span>
+      <i class="fa-solid fa-chevron-down" style="font-size:0.55rem;"></i>
+    </span>
+    <div class="dropdown-empresas oculto" id="dropdownEmpresas">
+      <div class="cab">
+        <span><i class="fa-solid fa-right-left"></i> Cambiar empresa</span>
+        <button onclick="toggleDropdownEmpresas()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="text" id="buscarEmpresaHeader" placeholder="🔍 Buscar empresa..." oninput="filtrarEmpresasHeader(this.value)">
+      <div class="lista" id="listaEmpresasHeader"></div>
+    </div>
+    <button class="btn-salir" onclick="cerrarSesion()" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button>
+  </div>
+</header>
+
+<main>
+  <!-- ── COLUMNA IZQUIERDA ── -->
+  <div class="col">
+
+    <div class="card robot-card">
+      <div class="card-body">
+        <svg id="robotSvg" class="r-idle" viewBox="0 0 120 158" width="80" height="80" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+          <line x1="60" y1="22" x2="60" y2="11" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+          <circle id="antennaDot" cx="60" cy="7" r="5" fill="#6366f1"/>
+          <rect x="29" y="22" width="62" height="44" rx="11" fill="#3730a3" stroke="#4338ca" stroke-width=".8"/>
+          <rect x="20" y="30" width="10" height="20" rx="5" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <rect x="90" y="30" width="10" height="20" rx="5" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <circle cx="25" cy="40" r="2" fill="#4338ca"/>
+          <circle cx="95" cy="40" r="2" fill="#4338ca"/>
+          <rect id="visorBg" x="37" y="31" width="46" height="22" rx="7" fill="#1e1b4b"/>
+          <rect x="39" y="33" width="14" height="4" rx="2" fill="white" opacity=".07"/>
+          <circle id="eyeL" cx="49" cy="42" r="5.5" fill="#6366f1"/>
+          <circle id="eyeR" cx="71" cy="42" r="5.5" fill="#6366f1"/>
+          <circle id="pupilL" cx="49" cy="42" r="2.8" fill="#1d4ed8"/>
+          <circle id="pupilR" cx="71" cy="42" r="2.8" fill="#1d4ed8"/>
+          <circle cx="51" cy="40" r="1" fill="white" opacity=".6"/>
+          <circle cx="73" cy="40" r="1" fill="white" opacity=".6"/>
+          <rect class="eyelid" x="43" y="36.5" width="12" height="12" rx="6" fill="#3730a3" opacity="0"/>
+          <rect class="eyelid" x="65" y="36.5" width="12" height="12" rx="6" fill="#3730a3" opacity="0"/>
+          <rect x="44" y="55" width="32" height="7" rx="3.5" fill="#1e1b4b"/>
+          <line x1="52" y1="55" x2="52" y2="62" stroke="#312e81" stroke-width="1"/>
+          <line x1="60" y1="55" x2="60" y2="62" stroke="#312e81" stroke-width="1"/>
+          <line x1="68" y1="55" x2="68" y2="62" stroke="#312e81" stroke-width="1"/>
+          <rect x="50" y="66" width="20" height="12" rx="5" fill="#312e81"/>
+          <line x1="54" y1="69" x2="54" y2="75" stroke="#4338ca" stroke-width="1"/>
+          <line x1="60" y1="69" x2="60" y2="75" stroke="#4338ca" stroke-width="1"/>
+          <line x1="66" y1="69" x2="66" y2="75" stroke="#4338ca" stroke-width="1"/>
+          <rect x="17" y="78" width="86" height="56" rx="11" fill="#3730a3" stroke="#4338ca" stroke-width=".8"/>
+          <rect x="27" y="86" width="66" height="40" rx="7" fill="#1e1b4b"/>
+          <circle id="clight1" cx="43" cy="98" r="4.5" fill="#10b981" opacity=".9"/>
+          <circle id="clight2" cx="60" cy="98" r="4.5" fill="#f59e0b" opacity=".9"/>
+          <circle id="clight3" cx="77" cy="98" r="4.5" fill="#ef4444" opacity=".9"/>
+          <rect x="33" y="110" width="54" height="8" rx="4" fill="#0f172a"/>
+          <rect id="loadIndicator" x="33" y="110" width="0" height="8" rx="4" fill="#4f46e5"/>
+          <text id="chestStatus" x="60" y="121" text-anchor="middle" font-family="monospace" font-size="5" fill="#6366f1" opacity=".9">EN REPOSO</text>
+          <circle cx="60" cy="83" r="3" fill="#312e81" stroke="#6366f1" stroke-width=".7"/>
+          <rect id="armL" x="4"   y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <rect id="armR" x="102" y="80" width="14" height="44" rx="7" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <circle cx="11"  cy="82" r="6" fill="#3730a3" stroke="#6366f1" stroke-width=".7"/>
+          <circle cx="109" cy="82" r="6" fill="#3730a3" stroke="#6366f1" stroke-width=".7"/>
+          <rect x="5"   y="119" width="12" height="9" rx="4.5" fill="#4338ca"/>
+          <rect x="103" y="119" width="12" height="9" rx="4.5" fill="#4338ca"/>
+          <rect x="35" y="134" width="18" height="17" rx="5" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <rect x="67" y="134" width="18" height="17" rx="5" fill="#312e81" stroke="#4338ca" stroke-width=".5"/>
+          <rect x="32" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
+          <rect x="65" y="147" width="23" height="9" rx="4.5" fill="#4338ca"/>
+        </svg>
+        <p id="robotMsg">Esperando PDF(s)...</p>
+        <p id="timerDisplay">00:00:00</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="icon"><i class="fa-solid fa-magnifying-glass"></i></span>Fuente de los casos</div>
+      <div class="card-body">
+        <div class="modo-tabs">
+          <button id="btn_modo_pdf" onclick="cambiarModo('pdf')">📁 Subir PDF</button>
+          <button class="activo" id="btn_modo_casos" onclick="cambiarModo('casos')">🔎 Factura/Caso</button>
+        </div>
+
+        <!-- ── Modo: subir PDF a mano (pruebas) ── -->
+        <div class="panel-modo oculto" id="panelModoPdf">
+          <div class="zona-drop" id="zonaDrop">
+            <i class="fa-solid fa-file-arrow-up"></i>
+            <p class="principal">Arrastra o haz clic</p>
+            <p>Puedes seleccionar varios a la vez</p>
+            <input type="file" id="inputArchivos" accept="application/pdf" multiple>
+          </div>
+          <div class="lista-archivos" id="listaArchivos"></div>
+          <button class="btn btn-proceso" id="btnProcesar" type="button" disabled>
+            <i id="iconoProcesar" class="fa-solid fa-play"></i>
+            <span id="textoProcesar">Procesar PDF(s)</span>
+          </button>
+          <button class="btn secundario btn-ancho" id="btnLimpiar">🧹 Limpiar todo</button>
+        </div>
+
+        <!-- ── Modo: buscar por factura/caso (API) ── -->
+        <div class="panel-modo" id="panelModoCasos">
+          <div class="modo-tabs" style="margin-bottom:8px;">
+            <button class="activo" id="btn_casos_manual" onclick="cambiarSubModoCasos('manual')">✍️ Manual</button>
+            <button id="btn_casos_excel" onclick="cambiarSubModoCasos('excel')">📊 Excel</button>
+          </div>
+
+          <div id="subpanelCasosManual">
+            <div style="display:flex; gap:6px; margin-bottom:6px;">
+              <input type="text" id="inpManualNoCaso" class="campo-casos" placeholder="No. Caso *" style="flex:1;">
+              <input type="text" id="inpManualNoFactura" class="campo-casos" placeholder="No. Factura" style="flex:1;">
+            </div>
+            <p style="font-size:0.6rem; color:var(--text-secondary); margin:4px 0 8px;">
+              La búsqueda es siempre por No. Caso. El PDF de salida se nombra
+              con el No. Factura (si no lo escribes, se usa el mismo No. Caso).
+            </p>
+            <button class="btn secundario btn-ancho" id="btnAgregarCasosManual">+ Agregar caso</button>
+          </div>
+
+          <div id="subpanelCasosExcel" class="oculto">
+            <div class="zona-drop" id="zonaDropExcel">
+              <i class="fa-solid fa-file-excel"></i>
+              <p class="principal">Arrastra o haz clic</p>
+              <p>Archivo .xlsx o .csv con columnas NoCaso / NoFactura</p>
+              <input type="file" id="inputExcelCasos" accept=".xlsx,.csv">
+            </div>
+            <a class="link-descarga" href="/api/plantilla-casos" style="margin-top:8px; display:inline-flex;">⬇ Descargar plantilla</a>
+          </div>
+
+          <div class="lista-archivos" id="listaCasos"></div>
+          <button class="btn btn-proceso" id="btnBuscarCasos" type="button" disabled>
+            <i id="iconoBuscarCasos" class="fa-solid fa-play"></i>
+            <span id="textoBuscarCasos">Buscar y procesar</span>
+          </button>
+          <p class="nota-boton oculto" id="notaBotonCasos"></p>
+          <div class="fila-acciones-secundarias">
+            <button class="btn-chip" id="btnLimpiarCasos" title="Limpia la selección en pantalla (no toca nada guardado en el servidor)">
+              <i class="fa-solid fa-broom"></i> Limpiar pantalla
+            </button>
+            <button class="btn-chip chip-peligro" id="btnLimpiarProgreso" title="Borra el avance guardado en el servidor para estos mismos casos (progreso, PDFs y Excel de una corrida anterior) — úsalo para forzar un inicio desde cero.">
+              <i class="fa-solid fa-trash-can"></i> Borrar progreso
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="icon"><i class="fa-solid fa-chart-simple"></i></span>Estadísticas</div>
+      <div class="card-body">
+        <div class="stats-grid">
+          <div class="stat-box"><div class="num" id="statTotal">0</div><div class="lbl">Total</div></div>
+          <div class="stat-box ok"><div class="num" id="statOk">0</div><div class="lbl">OK</div></div>
+          <div class="stat-box err"><div class="num" id="statErr">0</div><div class="lbl">Error</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── COLUMNA DERECHA ── -->
+  <div class="col panel-principal">
+
+    <div class="card" style="flex:0 0 auto; padding:10px 14px;">
+      <div class="progreso-barra"><div class="progreso-relleno" id="progresoRelleno"></div></div>
+      <div class="progreso-texto">
+        <span id="progresoTexto">0 / 0</span>
+        <span id="tiempoRestante">--:--:--</span>
+      </div>
+    </div>
+
+    <div class="card card-log" style="min-height:0;">
+      <div class="card-header">
+        <div class="tabs">
+          <button class="tab-btn activo" id="tab_log" onclick="cambiarVista('log')">🖥️ Registro</button>
+          <button class="tab-btn" id="tab_resultados" onclick="cambiarVista('resultados')">📋 Resultados</button>
+          <button class="tab-btn" id="tab_rutas" onclick="cambiarVista('rutas')">📍 Rutas sugeridas</button>
+          <button class="tab-btn" id="tab_urls" onclick="cambiarVista('urls')">🔗 URLs de búsqueda</button>
+          <button class="tab-btn" id="tab_errores" onclick="cambiarVista('errores')">⚠️ Errores</button>
+        </div>
+        <div class="tab-acciones">
+          <button onclick="copiarLog()">📋 Copiar log</button>
+        </div>
+      </div>
+      <div class="card-body" style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column;">
+
+        <div class="vista activa" id="vistaLog">
+          <div class="log-terminal" id="logBox">
+            <div class="log-linea info"><span class="hora">[Sistema]</span>Listo — esperando que subas PDF(s) para procesar...</div>
+          </div>
+        </div>
+
+        <div class="vista" id="vistaRutas">
+          <p class="resumen-explicacion">Por cada caso, en cuál ruta SÍ se encontró el documento — útil para saber cuál ruta conviene dejar marcada por defecto la próxima vez.</p>
+          <div class="lista-resumen" id="listaRutasSugeridas">
+            <p class="sin-datos">Todavía no hay ningún caso encontrado en esta corrida.</p>
+          </div>
+        </div>
+
+        <div class="vista" id="vistaUrls">
+          <p class="resumen-explicacion">La URL exacta que se le mandó a la API por cada caso/ruta intentado (con datos reales) — cópiala y pégala en el navegador para probarla a mano, útil cuando algo da 404 y quieres verificar si es un problema de ruta o de otra cosa.</p>
+          <div class="lista-resumen" id="listaUrlsBusqueda">
+            <p class="sin-datos">Todavía no se ha intentado ninguna búsqueda en esta corrida.</p>
+          </div>
+        </div>
+
+        <div class="vista" id="vistaErrores">
+          <p class="resumen-explicacion">Solo los casos/archivos que fallaron, en una línea sencilla cada uno.</p>
+          <div class="lista-resumen" id="listaErrores">
+            <p class="sin-datos">Sin errores en esta corrida — todo bien.</p>
+          </div>
+        </div>
+
+        <div class="vista" id="vistaResultados">
+          <div class="tabla-wrap">
+            <table id="tablaResultado">
+              <colgroup>
+                <col class="col-archivo"><col class="col-factura">
+                <col class="col-doc"><col class="col-doc"><col class="col-doc">
+                <col class="col-estado"><col class="col-obs"><col class="col-pdf">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th>Factura</th>
+                  <th>SIRAS</th>
+                  <th>Cédula/Mig.</th>
+                  <th>Tarjeta</th>
+                  <th>Estado</th>
+                  <th>Observaciones</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyResultado"></tbody>
+            </table>
+          </div>
+          <div class="acciones-descarga oculto" id="accionesDescarga">
+            <a class="btn secundario" id="linkExcel" href="#">📊 Excel</a>
+            <a class="btn secundario" id="linkZip" href="#">🗂️ ZIP completo</a>
+          </div>
+          <div class="empty-state" id="estadoVacio">
+            <div><i class="fa-solid fa-inbox"></i>Todavía no hay resultados — procesa algún PDF primero.</div>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+
+    <div class="card" style="flex:0 0 auto;">
+      <div class="card-header">
+        <span><span class="icon"><i class="fa-solid fa-list-check"></i></span>Checklist de documentos y rutas</span>
+        <label class="toggle-ocultar-p">
+          <input type="checkbox" id="chkOcultarPendientes" onchange="toggleOcultarPendientes(this)">
+          Ocultar los "(P)" aún no identificados
+        </label>
+      </div>
+      <div class="card-body">
+        <div style="display:flex; gap:10px;">
+          <details class="grupo-checklist" open style="flex:1; margin-bottom:0;">
+            <summary>Documentos del paciente</summary>
+            {% if checklist_errores.paciente %}
+            <p class="aviso-checklist"><i class="fa-solid fa-triangle-exclamation"></i> {{ checklist_errores.paciente }}</p>
+            {% endif %}
+            <input type="text" class="buscador-checklist" placeholder="🔍 Buscar..." oninput="filtrarChecklist(this)">
+            <label class="check-item check-maestro">
+              <input type="checkbox" id="maestro_paciente">
+              <i>Seleccionar / deseleccionar todos</i>
+            </label>
+            <div class="checklist-lista">
+              {% for doc in checklist.paciente %}
+              <label class="check-item {{ '' if doc.implementado else 'no-impl' }}">
+                <input type="checkbox" class="chk-doc" data-grupo="paciente" value="{{ doc.id }}" {{ 'checked' if doc.id in checklist_default else '' }}>
+                {{ doc.nombre }}
+                {% if not doc.implementado %}<span class="tag-pronto" title="Pendiente: el nombre viene de tu sistema, pero el bot todavía no sabe identificar este documento dentro de un escaneo">(P)</span>{% endif %}
+              </label>
+              {% else %}
+              <p class="sin-datos">Sin datos del servidor todavía.</p>
+              {% endfor %}
+            </div>
+          </details>
+          <details class="grupo-checklist" style="flex:1; margin-bottom:0;">
+            <summary>Documentos del caso</summary>
+            {% if checklist_errores.caso %}
+            <p class="aviso-checklist"><i class="fa-solid fa-triangle-exclamation"></i> {{ checklist_errores.caso }}</p>
+            {% endif %}
+            <input type="text" class="buscador-checklist" placeholder="🔍 Buscar..." oninput="filtrarChecklist(this)">
+            <label class="check-item check-maestro">
+              <input type="checkbox" id="maestro_caso">
+              <i>Seleccionar / deseleccionar todos</i>
+            </label>
+            <div class="checklist-lista">
+              {% for doc in checklist.caso %}
+              <label class="check-item {{ '' if doc.implementado else 'no-impl' }}">
+                <input type="checkbox" class="chk-doc" data-grupo="caso" value="{{ doc.id }}" {{ 'checked' if doc.id in checklist_default else '' }}>
+                {{ doc.nombre }}
+                {% if not doc.implementado %}<span class="tag-pronto" title="Pendiente: el nombre viene de tu sistema, pero el bot todavía no sabe identificar este documento dentro de un escaneo">(P)</span>{% endif %}
+              </label>
+              {% else %}
+              <p class="sin-datos">Sin datos del servidor todavía.</p>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+        <details class="grupo-checklist" style="margin-top:8px; margin-bottom:0;">
+          <summary>Rutas / Centro de digitalización</summary>
+          <p class="observacion-rutas"><i class="fa-solid fa-circle-info"></i> {{ observacion_rutas }}</p>
+          {% if checklist_errores.rutas %}
+          <p class="aviso-checklist"><i class="fa-solid fa-triangle-exclamation"></i> {{ checklist_errores.rutas }}</p>
+          {% endif %}
+          <input type="text" class="buscador-checklist" placeholder="🔍 Buscar ruta..." oninput="filtrarChecklist(this)">
+          <label class="check-item check-maestro">
+            <input type="checkbox" id="maestro_rutas">
+            <i>Seleccionar / deseleccionar todas</i>
+          </label>
+          <div class="checklist-lista">
+            {% for doc in checklist.rutas %}
+            <label class="check-item">
+              <input type="checkbox" class="chk-ruta" value="{{ doc.id }}" {{ 'checked' if doc.id in checklist_default else '' }}>
+              {{ doc.nombre }}
+            </label>
+            {% else %}
+            <p class="sin-datos">Sin datos del servidor todavía.</p>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// Datos completos de las rutas (nombre, cod_centro, ruta de red) que trajo
+// la API al cargar la página — el checklist solo MUESTRA el nombre, pero
+// hace falta esto completo para mandarlo al backend cuando se buscan
+// documentos por caso (el bot necesita saber en qué carpeta de red
+// buscar, no solo el nombre bonito).
+const RUTAS_DISPONIBLES = {{ checklist.rutas | tojson }};
+const DOCUMENTOS_DISPONIBLES = ({{ checklist.paciente | tojson }}).concat({{ checklist.caso | tojson }});
+
+const zonaDrop = document.getElementById('zonaDrop');
+const inputArchivos = document.getElementById('inputArchivos');
+const listaArchivos = document.getElementById('listaArchivos');
+const btnProcesar = document.getElementById('btnProcesar');
+const iconoProcesar = document.getElementById('iconoProcesar');
+const textoProcesar = document.getElementById('textoProcesar');
+const btnLimpiar = document.getElementById('btnLimpiar');
+const logBox = document.getElementById('logBox');
+const robotSvg = document.getElementById('robotSvg');
+const robotMsg = document.getElementById('robotMsg');
+const chestStatus = document.getElementById('chestStatus');
+const loadIndicator = document.getElementById('loadIndicator');
+
+const zonaDropExcel = document.getElementById('zonaDropExcel');
+const inputExcelCasos = document.getElementById('inputExcelCasos');
+const listaCasos = document.getElementById('listaCasos');
+const btnBuscarCasos = document.getElementById('btnBuscarCasos');
+const iconoBuscarCasos = document.getElementById('iconoBuscarCasos');
+const textoBuscarCasos = document.getElementById('textoBuscarCasos');
+const notaBotonCasos = document.getElementById('notaBotonCasos');
+const btnLimpiarCasos = document.getElementById('btnLimpiarCasos');
+const btnLimpiarProgreso = document.getElementById('btnLimpiarProgreso');
+const inpManualNoCaso = document.getElementById('inpManualNoCaso');
+const inpManualNoFactura = document.getElementById('inpManualNoFactura');
+const btnAgregarCasosManual = document.getElementById('btnAgregarCasosManual');
+
+// ── Máquina de estados del botón principal ──
+// El backend es la ÚNICA fuente de verdad (ver /api/estado ->
+// estado_boton + modo). El frontend nunca decide por su cuenta si algo
+// "sigue corriendo" -- solo refleja lo que el servidor contesta.
+let estadoGlobal = { estado_boton: 'listo', modo: null };
+
+/* ══════════════════════════════════════════════════════════════
+   Máquina de estados del botón principal
+   ══════════════════════════════════════════════════════════════
+   Estados posibles: 'listo' | 'ejecutando' | 'pausado' | 'bloqueado'
+   (bloqueado = no hay nada que hacer todavía, o el OTRO panel está
+   corriendo algo y hay que esperar). La estructura interna del botón
+   (un <i> + un <span>) nunca se toca — solo se cambian sus clases y
+   texto, para que el ícono nunca quede duplicado ni desalineado. */
+
+function aplicarEstadoBoton(btn, icono, texto, estado, textoListo){
+  btn.classList.remove('estado-ejecutando', 'estado-pausado');
+  switch (estado) {
+    case 'ejecutando':
+      icono.className = 'fa-solid fa-stop';
+      texto.textContent = 'Detener';
+      btn.classList.add('estado-ejecutando');
+      btn.disabled = false;
+      btn.setAttribute('aria-label', 'Detener el proceso en curso');
+      break;
+    case 'pausado':
+      icono.className = 'fa-solid fa-play';
+      texto.textContent = 'Reanudar';
+      btn.classList.add('estado-pausado');
+      btn.disabled = false;
+      btn.setAttribute('aria-label', 'Reanudar el proceso donde quedó');
+      break;
+    case 'bloqueado':
+      icono.className = 'fa-solid fa-play';
+      texto.textContent = textoListo;
+      btn.disabled = true;
+      btn.setAttribute('aria-label', textoListo + ' (no disponible en este momento)');
+      break;
+    default: // 'listo'
+      icono.className = 'fa-solid fa-play';
+      texto.textContent = textoListo;
+      btn.disabled = false;
+      btn.setAttribute('aria-label', textoListo);
+  }
+}
+
+/* Vuelve a pintar los 2 botones principales (Casos y Subir PDF) según
+   el último estado conocido del servidor + lo que hay seleccionado en
+   pantalla ahora mismo. Se llama después de cada consulta al backend Y
+   cada vez que cambia la selección de casos/archivos. */
+function renderizarBotonesProceso(){
+  const { estado_boton, modo } = estadoGlobal;
+
+  // Panel "Factura/Caso" -- es el único con concepto de "pausado"
+  // (progreso reanudable), porque es el único que persiste progreso.json.
+  if (modo === 'casos' && estado_boton === 'ejecutando') {
+    aplicarEstadoBoton(btnBuscarCasos, iconoBuscarCasos, textoBuscarCasos, 'ejecutando');
+    notaBotonCasos.classList.add('oculto');
+  } else if (estado_boton === 'pausado') {
+    aplicarEstadoBoton(btnBuscarCasos, iconoBuscarCasos, textoBuscarCasos, 'pausado');
+    notaBotonCasos.textContent = 'Hay un progreso guardado sin terminar para estos casos.';
+    notaBotonCasos.classList.remove('oculto');
+  } else if (modo === 'subida' && estado_boton === 'ejecutando') {
+    // El OTRO panel (Subir PDF) está corriendo -- no tiene sentido
+    // dejar arrancar una búsqueda de casos al mismo tiempo.
+    aplicarEstadoBoton(btnBuscarCasos, iconoBuscarCasos, textoBuscarCasos, 'bloqueado', 'Buscar y procesar');
+    notaBotonCasos.textContent = 'Espera a que termine el proceso de "Subir PDF".';
+    notaBotonCasos.classList.remove('oculto');
+  } else {
+    aplicarEstadoBoton(btnBuscarCasos, iconoBuscarCasos, textoBuscarCasos,
+      casosSeleccionados.length ? 'listo' : 'bloqueado', 'Buscar y procesar');
+    notaBotonCasos.classList.add('oculto');
+  }
+
+  // Panel "Subir PDF" -- 2 estados nada más (sin Reanudar, no hay
+  // persistencia de progreso en este modo).
+  if (modo === 'subida' && estado_boton === 'ejecutando') {
+    aplicarEstadoBoton(btnProcesar, iconoProcesar, textoProcesar, 'ejecutando');
+  } else if (estado_boton === 'ejecutando' || estado_boton === 'pausado') {
+    aplicarEstadoBoton(btnProcesar, iconoProcesar, textoProcesar, 'bloqueado', 'Procesar PDF(s)');
+  } else {
+    aplicarEstadoBoton(btnProcesar, iconoProcesar, textoProcesar,
+      archivosSeleccionados.length ? 'listo' : 'bloqueado', 'Procesar PDF(s)');
+  }
+}
+
+/* Consulta liviana de solo-estado (no trae logs) -- se usa para
+   mantener los botones sincronizados incluso cuando NO hay un polling
+   detallado activo (por ejemplo, recién se cargó la página, o el
+   proceso lo detuvieron/lo completaron desde otra pestaña). */
+async function refrescarEstadoGlobal(){
+  if (pollTimer) return; // el polling detallado ya está actualizando esto mismo
+  try {
+    const resp = await fetch('/api/estado?offset=999999999');
+    const estado = await resp.json();
+    estadoGlobal = { estado_boton: estado.estado_boton, modo: estado.modo };
+    renderizarBotonesProceso();
+  } catch (err) {
+    // silencioso -- se reintenta solo en el próximo tick
+  }
+}
+// Este intervalo, sin cuidado, sería justo el problema clásico de
+// "revisión automática que nunca se detiene" que le impide a Railway (o
+// cualquier plataforma con auto-sleep) dormir el contenedor cuando de
+// verdad nadie está mirando la pestaña -- por eso se pausa mientras la
+// pestaña está oculta/minimizada, y se reanuda (con un refresh inmediato,
+// no hay que esperar los 4s) apenas alguien vuelve a mirarla.
+let intervaloEstadoGlobal = null;
+
+function iniciarPollingLigero(){
+  if (intervaloEstadoGlobal) return; // ya está corriendo
+  intervaloEstadoGlobal = setInterval(refrescarEstadoGlobal, 4000);
+}
+
+function detenerPollingLigero(){
+  if (intervaloEstadoGlobal) {
+    clearInterval(intervaloEstadoGlobal);
+    intervaloEstadoGlobal = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    detenerPollingLigero();
+  } else {
+    refrescarEstadoGlobal();  // ponerse al día de una, sin esperar el próximo tick
+    iniciarPollingLigero();
+  }
+});
+
+if (!document.hidden) iniciarPollingLigero();
+
+/* Al cargar la página: ¿hay un progreso pendiente de este mismo
+   usuario/empresa? (por ejemplo, el servidor se reinició, o el
+   navegador se cerró a mitad de un lote). Si lo hay, se reconstruye
+   sola la lista de casos y se muestra "Reanudar" -- sin que el usuario
+   tenga que volver a escribir o subir nada. */
+async function comprobarProgresoPendienteAlCargar(){
+  try {
+    const resp = await fetch('/api/progreso-pendiente');
+    const data = await resp.json();
+    if (data.hay_progreso && casosSeleccionados.length === 0) {
+      casosSeleccionados = data.casos || [];
+      cambiarModo('casos');
+      cambiarSubModoCasos('manual');
+      renderListaCasos();
+      const r = data.resumen || {};
+      notaBotonCasos.textContent = `Progreso pendiente: ${r.completados || 0} de ${r.total_registros || casosSeleccionados.length} caso(s) ya procesados.`;
+      notaBotonCasos.classList.remove('oculto');
+    }
+  } catch (err) {
+    console.warn('No se pudo consultar progreso pendiente:', err);
+  }
+  refrescarEstadoGlobal();
+}
+document.addEventListener('DOMContentLoaded', comprobarProgresoPendienteAlCargar);
+if (document.readyState !== 'loading') comprobarProgresoPendienteAlCargar();
+
+
+let archivosSeleccionados = [];
+let casosSeleccionados = [];  // [{NoCaso, NoFactura}]
+let logOffset = 0;
+let pollTimer = null;
+let cronometroInterval = null;
+let horaInicio = null;
+
+/* ── Sesión (empresa / logout / cambiar empresa) ── */
+function escaparHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+let _empresasDisponibles = [];
+let _empresaActualCod = '';
+
+async function cargarSesion(){
+  try {
+    const resp = await fetch('/api/auth/me');
+    const data = await resp.json();
+    if (data.autenticado){
+      document.getElementById('empresaActualTexto').textContent =
+        `${data.usuario} · ${data.empresa_nombre || data.empresa}`;
+      _empresasDisponibles = data.empresas || [];
+      _empresaActualCod = data.empresa || '';
+    }
+  } catch(e){ /* silencioso */ }
+}
+cargarSesion();
+
+async function cerrarSesion(){
+  if (!confirm('¿Cerrar sesión?')) return;
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+
+function toggleDropdownEmpresas(){
+  const dd = document.getElementById('dropdownEmpresas');
+  const abrir = dd.classList.contains('oculto');
+  dd.classList.toggle('oculto');
+  if (abrir){
+    document.getElementById('buscarEmpresaHeader').value = '';
+    renderEmpresasHeader(_empresasDisponibles);
+    document.getElementById('buscarEmpresaHeader').focus();
+  }
+}
+
+function filtrarEmpresasHeader(q){
+  const q2 = q.toLowerCase();
+  const filtradas = _empresasDisponibles.filter(e =>
+    e.cod.toLowerCase().includes(q2) ||
+    e.nombre.toLowerCase().includes(q2) ||
+    (e.sede || '').toLowerCase().includes(q2)
+  );
+  renderEmpresasHeader(filtradas);
+}
+
+let _empresasFiltradasHeader = [];
+
+function renderEmpresasHeader(empresas){
+  _empresasFiltradasHeader = empresas;
+  const lista = document.getElementById('listaEmpresasHeader');
+  if (!empresas.length){
+    lista.innerHTML = '<div style="padding:10px; font-size:0.65rem; color:var(--text-secondary); text-align:center;">Sin resultados</div>';
+    return;
+  }
+  lista.innerHTML = empresas.map((e, i) => {
+    const activa = e.cod === _empresaActualCod ? 'activa' : '';
+    const sede = e.sede ? ` · ${e.sede}` : '';
+    const check = e.cod === _empresaActualCod ? '<i class="fa-solid fa-check" style="color:var(--accent); margin-left:auto;"></i>' : '';
+    return `<div class="item ${activa}" data-idx="${i}">
+              <span class="cod">${escaparHtml(e.cod)}</span>
+              <span class="nombre">${escaparHtml(e.nombre)}${escaparHtml(sede)}</span>
+              ${check}
+            </div>`;
+  }).join('');
+  lista.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => cambiarEmpresaHeader(_empresasFiltradasHeader[Number(el.dataset.idx)]));
+  });
+}
+
+async function cambiarEmpresaHeader(e){
+  try {
+    const resp = await fetch('/api/auth/cambiar-empresa', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empresa: e.cod }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || 'No se pudo cambiar de empresa');
+
+    _empresaActualCod = e.cod;
+    const sede = e.sede ? ` · ${e.sede}` : '';
+    document.getElementById('empresaActualTexto').textContent =
+      document.getElementById('empresaActualTexto').textContent.split(' · ')[0] + ` · ${e.cod} — ${e.nombre}${sede}`;
+    toggleDropdownEmpresas();
+  } catch(err) {
+    alert('Error cambiando de empresa: ' + err.message);
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const dd = document.getElementById('dropdownEmpresas');
+  const badge = document.getElementById('btnAbrirEmpresas');
+  if (dd && !dd.classList.contains('oculto') && !dd.contains(ev.target) && !badge.contains(ev.target)){
+    dd.classList.add('oculto');
+  }
+});
+
+/* ── Checklist de documentos ── */
+function obtenerTiposDocumentoSeleccionados(){
+  const idsMarcados = Array.from(document.querySelectorAll('.chk-doc:checked')).map(cb => cb.value);
+  return DOCUMENTOS_DISPONIBLES.filter(d => idsMarcados.includes(d.id));
+}
+function obtenerRutasSeleccionadas(){
+  const idsMarcados = Array.from(document.querySelectorAll('.chk-ruta:checked')).map(cb => cb.value);
+  return RUTAS_DISPONIBLES.filter(r => idsMarcados.includes(r.id));
+}
+
+/* ── Pestañas de resumen: Rutas sugeridas / Errores ── */
+function renderizarRutasSugeridas(lista){
+  const cont = document.getElementById('listaRutasSugeridas');
+  if (!lista.length){
+    cont.innerHTML = '<p class="sin-datos">Todavía no hay ningún caso encontrado en esta corrida.</p>';
+    return;
+  }
+  cont.innerHTML = lista.map(item => `
+    <div class="fila-resumen ok">
+      <span class="caso">Caso ${escaparHtml(item.caso)}</span>
+      <span class="badge-ruta">📍 ${escaparHtml(item.ruta)}</span>
+    </div>
+  `).join('');
+}
+
+function renderizarResumenErrores(lista){
+  const cont = document.getElementById('listaErrores');
+  if (!lista.length){
+    cont.innerHTML = '<p class="sin-datos">Sin errores en esta corrida — todo bien.</p>';
+    return;
+  }
+  cont.innerHTML = lista.map(item => `
+    <div class="fila-resumen err">
+      <span class="caso">${escaparHtml(item.referencia)}</span>
+      <span class="badge-error">⚠️ ${escaparHtml(item.mensaje)}</span>
+    </div>
+  `).join('');
+}
+
+function renderizarUrlsBusqueda(lista){
+  const cont = document.getElementById('listaUrlsBusqueda');
+  if (!lista.length){
+    cont.innerHTML = '<p class="sin-datos">Todavía no se ha intentado ninguna búsqueda en esta corrida.</p>';
+    return;
+  }
+  cont.innerHTML = lista.map((item, i) => `
+    <div class="fila-url">
+      <div class="fila-url-cabecera">
+        <div class="fila-url-info">
+          <span class="caso">Caso ${escaparHtml(item.caso)}</span>
+          <span class="badge-ruta-url" title="${escaparHtml(item.ruta)}">📍 ${escaparHtml(item.ruta)}</span>
+        </div>
+        <button class="btn-copiar-url" data-url-idx="${i}" onclick="copiarUrlBusqueda(this, ${i})">📋 Copiar</button>
+      </div>
+      <div class="caja-url" id="urlTexto${i}">${escaparHtml(item.url)}</div>
+    </div>
+  `).join('');
+}
+
+async function copiarUrlBusqueda(btn, idx){
+  const texto = document.getElementById('urlTexto' + idx).textContent;
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (err) {
+    // Respaldo por si el navegador bloquea el clipboard API (ej. sin HTTPS)
+    const area = document.createElement('textarea');
+    area.value = texto;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand('copy');
+    document.body.removeChild(area);
+  }
+  const textoOriginal = btn.textContent;
+  btn.textContent = '✅ Copiado';
+  btn.classList.add('copiado');
+  setTimeout(() => { btn.textContent = textoOriginal; btn.classList.remove('copiado'); }, 1500);
+}
+
+/* ── Checkbox maestro "seleccionar/deseleccionar todos" por grupo ──
+   Al hacer clic en el maestro, marca o desmarca todos los de ese grupo.
+   Si el usuario marca/desmarca uno individual, el maestro se actualiza
+   solo: marcado si están todos, vacío si no hay ninguno, "a medias"
+   (indeterminate) si hay una mezcla. */
+function configurarCheckMaestro(idMaestro, selectorItems){
+  const maestro = document.getElementById(idMaestro);
+  if (!maestro) return;
+  const items = () => Array.from(document.querySelectorAll(selectorItems));
+
+  function sincronizarMaestro(){
+    const todos = items();
+    const marcados = todos.filter(cb => cb.checked).length;
+    maestro.checked = todos.length > 0 && marcados === todos.length;
+    maestro.indeterminate = marcados > 0 && marcados < todos.length;
+  }
+
+  maestro.addEventListener('change', () => {
+    items().forEach(cb => { cb.checked = maestro.checked; });
+    maestro.indeterminate = false;
+  });
+
+  items().forEach(cb => cb.addEventListener('change', sincronizarMaestro));
+  sincronizarMaestro();
+}
+configurarCheckMaestro('maestro_paciente', '.chk-doc[data-grupo="paciente"]');
+configurarCheckMaestro('maestro_caso', '.chk-doc[data-grupo="caso"]');
+configurarCheckMaestro('maestro_rutas', '.chk-ruta');
+
+/* ── Buscador en vivo dentro de cada grupo del checklist ──
+   El buscador filtra solo dentro de SU propia lista (la que está justo
+   después de él en el HTML), no las otras dos — cada grupo se busca por
+   separado. */
+function filtrarChecklist(input){
+  const contenedorGrupo = input.closest('details.grupo-checklist');
+  const lista = contenedorGrupo.querySelector('.checklist-lista');
+  const q = input.value.trim().toLowerCase();
+  Array.from(lista.children).forEach(fila => {
+    if (fila.classList.contains('sin-datos')) return;
+    const coincide = fila.textContent.toLowerCase().includes(q);
+    fila.style.display = coincide ? '' : 'none';
+  });
+}
+
+/* ── Ocultar "(P)" (documentos que el bot todavía no identifica) ──
+   No es solo un filtro visual: si alguno de esos quedó marcado antes de
+   ocultarlo, se desmarca — porque al ocultarlo, esa opción ya no se va a
+   usar en la búsqueda (evita marcar algo "a ciegas" que ni siquiera se
+   ve en pantalla). */
+function toggleOcultarPendientes(checkbox){
+  document.body.classList.toggle('ocultar-pendientes', checkbox.checked);
+  if (checkbox.checked){
+    document.querySelectorAll('label.no-impl input.chk-doc:checked').forEach(cb => {
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change'));  // para que el check maestro se actualice solo
+    });
+  }
+}
+
+/* ── Modo: Subir PDF vs Factura/Caso ── */
+function cambiarModo(modo){
+  document.getElementById('panelModoPdf').classList.toggle('oculto', modo !== 'pdf');
+  document.getElementById('panelModoCasos').classList.toggle('oculto', modo !== 'casos');
+  document.getElementById('btn_modo_pdf').classList.toggle('activo', modo === 'pdf');
+  document.getElementById('btn_modo_casos').classList.toggle('activo', modo === 'casos');
+  renderizarBotonesProceso();
+}
+
+function cambiarSubModoCasos(modo){
+  document.getElementById('subpanelCasosManual').classList.toggle('oculto', modo !== 'manual');
+  document.getElementById('subpanelCasosExcel').classList.toggle('oculto', modo !== 'excel');
+  document.getElementById('btn_casos_manual').classList.toggle('activo', modo === 'manual');
+  document.getElementById('btn_casos_excel').classList.toggle('activo', modo === 'excel');
+}
+
+function renderListaCasos(){
+  listaCasos.innerHTML = casosSeleccionados.map(c =>
+    `<div><i class="fa-solid fa-hashtag"></i>Caso ${c.NoCaso}${c.NoFactura && c.NoFactura !== c.NoCaso ? ' · Factura ' + c.NoFactura : ''}</div>`
+  ).join('');
+  renderizarBotonesProceso();
+}
+
+function agregarCasoManual(){
+  // Misma normalización que el backend (_solo_digitos): "641-757",
+  // "641 757", "N° 641757", etc. todos terminan siendo "641757" -- así
+  // lo que se ve en pantalla ya coincide con lo que se va a buscar.
+  const nc = inpManualNoCaso.value.replace(/[^0-9]/g, '');
+  const nf = inpManualNoFactura.value.trim();
+  if (!nc){ alert('Ingresa al menos el No. Caso (debe tener al menos un dígito)'); return; }
+  if (casosSeleccionados.find(c => c.NoCaso === nc)){
+    alert(`El caso ${nc} ya está en la cola`);
+    return;
+  }
+  casosSeleccionados.push({ NoCaso: nc, NoFactura: nf || nc });
+  inpManualNoCaso.value = '';
+  inpManualNoFactura.value = '';
+  inpManualNoCaso.focus();
+  renderListaCasos();
+}
+
+btnAgregarCasosManual.addEventListener('click', agregarCasoManual);
+[inpManualNoCaso, inpManualNoFactura].forEach(inp => {
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') agregarCasoManual(); });
+});
+
+zonaDropExcel.addEventListener('click', () => inputExcelCasos.click());
+zonaDropExcel.addEventListener('dragover', e => { e.preventDefault(); zonaDropExcel.classList.add('arrastrando'); });
+zonaDropExcel.addEventListener('dragleave', () => zonaDropExcel.classList.remove('arrastrando'));
+zonaDropExcel.addEventListener('drop', async e => {
+  e.preventDefault();
+  zonaDropExcel.classList.remove('arrastrando');
+  if (e.dataTransfer.files.length) await subirExcelCasos(e.dataTransfer.files[0]);
+});
+inputExcelCasos.addEventListener('change', async e => {
+  if (e.target.files.length) await subirExcelCasos(e.target.files[0]);
+});
+
+async function subirExcelCasos(archivo){
+  const formData = new FormData();
+  formData.append('file', archivo);
+  try {
+    const resp = await fetch('/api/cargar-casos', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.ok){ alert(data.error || 'No se pudo leer el archivo'); return; }
+    casosSeleccionados = casosSeleccionados.concat(data.casos);
+    renderListaCasos();
+  } catch(err) {
+    alert('Error subiendo el archivo: ' + err);
+  }
+}
+
+btnLimpiarCasos.addEventListener('click', () => {
+  if (pollTimer) {
+    if (!confirm('Hay un lote procesándose. ¿Limpiar de todas formas?')) return;
+  }
+  casosSeleccionados = [];
+  renderListaCasos();
+  inpManualNoCaso.value = '';
+  inpManualNoFactura.value = '';
+  inputExcelCasos.value = '';
+  limpiarTodo();
+});
+
+/* ── Robot ── */
+function setRobotState(estado, mensaje, chest){
+  robotSvg.className = '';
+  robotSvg.classList.add('r-' + estado);
+  if (mensaje) robotMsg.textContent = mensaje;
+  if (chest) chestStatus.textContent = chest;
+}
+
+/* ── Tabs ── */
+function cambiarVista(nombre){
+  document.querySelectorAll('.vista').forEach(v => v.classList.remove('activa'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+  document.getElementById('vista' + nombre.charAt(0).toUpperCase() + nombre.slice(1)).classList.add('activa');
+  document.getElementById('tab_' + nombre).classList.add('activo');
+}
+
+/* ── Subida de archivos ── */
+zonaDrop.addEventListener('click', () => inputArchivos.click());
+zonaDrop.addEventListener('dragover', e => { e.preventDefault(); zonaDrop.classList.add('arrastrando'); });
+zonaDrop.addEventListener('dragleave', () => zonaDrop.classList.remove('arrastrando'));
+zonaDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  zonaDrop.classList.remove('arrastrando');
+  agregarArchivos(e.dataTransfer.files);
+});
+inputArchivos.addEventListener('change', e => agregarArchivos(e.target.files));
+
+function agregarArchivos(files){
+  for (const f of files){
+    if (f.name.toLowerCase().endsWith('.pdf')) archivosSeleccionados.push(f);
+  }
+  renderLista();
+}
+
+function renderLista(){
+  listaArchivos.innerHTML = archivosSeleccionados.map(f => `<div><i class="fa-solid fa-file-pdf"></i>${f.name}</div>`).join('');
+  renderizarBotonesProceso();
+}
+
+/* ── Log ── */
+function horaActual(){ return new Date().toLocaleTimeString('es-CO', {hour12:false}); }
+
+function agregarLineaLog(linea){
+  const div = document.createElement('div');
+  div.className = `log-linea ${linea.level}`;
+  const span = document.createElement('span');
+  span.className = 'hora'; span.textContent = `[${linea.ts}]`;
+  div.appendChild(span);
+  div.appendChild(document.createTextNode(linea.msg));
+  logBox.appendChild(div);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function copiarLog(){
+  const texto = Array.from(document.querySelectorAll('#logBox .log-linea')).map(el => el.textContent).join('\n');
+  navigator.clipboard.writeText(texto).then(() => alert('Log copiado al portapapeles')).catch(() => alert('No se pudo copiar'));
+}
+
+/* ── Cronómetro ── */
+function formatoHMS(segundos){
+  segundos = Math.max(0, Math.floor(segundos));
+  const h = Math.floor(segundos/3600), m = Math.floor((segundos%3600)/60), s = segundos%60;
+  return [h,m,s].map(n => String(n).padStart(2,'0')).join(':');
+}
+function reiniciarCronometro(){
+  if (cronometroInterval) clearInterval(cronometroInterval);
+  cronometroInterval = null; horaInicio = null;
+  document.getElementById('timerDisplay').textContent = '00:00:00';
+  document.getElementById('tiempoRestante').textContent = '--:--:--';
+}
+function iniciarCronometro(){
+  reiniciarCronometro();
+  horaInicio = Date.now();
+  cronometroInterval = setInterval(() => {
+    document.getElementById('timerDisplay').textContent = formatoHMS((Date.now()-horaInicio)/1000);
+  }, 1000);
+}
+function detenerCronometro(){ if (cronometroInterval) clearInterval(cronometroInterval); cronometroInterval = null; }
+
+/* ── Limpiar todo ── */
+function limpiarTodo(){
+  // Si hay un lote corriendo, el proceso en el servidor sigue (no se puede
+  // cancelar desde aquí), pero se desconecta la pantalla de ese lote para
+  // poder empezar de cero con uno nuevo.
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  detenerCronometro();
+  reiniciarCronometro();
+
+  archivosSeleccionados = [];
+  inputArchivos.value = '';
+  renderLista();
+
+  logOffset = 0;
+  logBox.innerHTML = '<div class="log-linea info"><span class="hora">[Sistema]</span>Listo — esperando que subas PDF(s) para procesar...</div>';
+
+  document.getElementById('progresoRelleno').style.width = '0%';
+  document.getElementById('progresoTexto').textContent = '0 / 0';
+  document.getElementById('statTotal').textContent = '0';
+  document.getElementById('statOk').textContent = '0';
+  document.getElementById('statErr').textContent = '0';
+  loadIndicator.setAttribute('width', '0');
+
+  document.getElementById('tbodyResultado').innerHTML = '';
+  document.getElementById('estadoVacio').classList.remove('oculto');
+  document.getElementById('accionesDescarga').classList.add('oculto');
+  renderizarRutasSugeridas([]);
+  renderizarResumenErrores([]);
+  renderizarUrlsBusqueda([]);
+
+  setRobotState('idle', 'Esperando PDF(s)...', 'EN REPOSO');
+  cambiarVista('log');
+  renderizarBotonesProceso();
+}
+
+btnLimpiar.addEventListener('click', () => {
+  if (pollTimer) {
+    const seguir = confirm('Hay un lote procesándose. Si limpias ahora, dejas de ver su progreso (el proceso sigue en el servidor, pero esta pantalla ya no lo va a mostrar). ¿Limpiar de todas formas?');
+    if (!seguir) return;
+  }
+  limpiarTodo();
+});
+
+/* ── Procesar (modo Subir PDF) ── */
+btnProcesar.addEventListener('click', async () => {
+  // Estructura fija: el estado real vive en estadoGlobal, no en el
+  // texto del botón -- así nunca hay ambigüedad sobre qué acción toca.
+  if (estadoGlobal.estado_boton === 'ejecutando' && estadoGlobal.modo === 'subida') {
+    await detenerProceso(btnProcesar);
+    return;
+  }
+  if (archivosSeleccionados.length === 0) return;
+
+  logBox.innerHTML = '';
+  logOffset = 0;
+  document.getElementById('estadoVacio').classList.remove('oculto');
+  document.getElementById('accionesDescarga').classList.add('oculto');
+  document.getElementById('tbodyResultado').innerHTML = '';
+  document.getElementById('progresoRelleno').style.width = '0%';
+  document.getElementById('progresoTexto').textContent = `0 / ${archivosSeleccionados.length}`;
+  cambiarVista('log');
+  iniciarCronometro();
+  setRobotState('loading', 'Procesando...', 'TRABAJANDO');
+
+  const formData = new FormData();
+  archivosSeleccionados.forEach(f => formData.append('pdfs', f));
+
+  try {
+    const resp = await fetch('/procesar', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.ok){
+      agregarLineaLog({ts: horaActual(), level: 'error', msg: data.error});
+      setRobotState('error', 'Hubo un problema', 'ERROR');
+      detenerCronometro();
+      estadoGlobal = { estado_boton: 'listo', modo: null };
+      renderizarBotonesProceso();
+      return;
+    }
+    estadoGlobal = { estado_boton: 'ejecutando', modo: 'subida' };
+    renderizarBotonesProceso();
+    iniciarPolling(data.lote_id);
+  } catch (err) {
+    agregarLineaLog({ts: horaActual(), level: 'error', msg: 'Error de conexión: ' + err});
+    setRobotState('error', 'Error de conexión', 'ERROR');
+    detenerCronometro();
+    estadoGlobal = { estado_boton: 'listo', modo: null };
+    renderizarBotonesProceso();
+  }
+});
+
+/* ── Buscar por factura/caso (API) ── */
+async function enviarIniciarCasos(decision){
+  const resp = await fetch('/api/iniciar-casos', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      casos: casosSeleccionados,
+      tipos_documento: obtenerTiposDocumentoSeleccionados(),
+      rutas: obtenerRutasSeleccionadas(),
+      decision: decision || null,
+    }),
+  });
+  return resp.json();
+}
+
+btnBuscarCasos.addEventListener('click', async () => {
+  // Estructura fija: se decide la acción por el estado REAL conocido
+  // del servidor, nunca por el texto que se ve en el botón.
+  if (estadoGlobal.estado_boton === 'ejecutando' && estadoGlobal.modo === 'casos') {
+    await detenerProceso(btnBuscarCasos);
+    return;
+  }
+  if (casosSeleccionados.length === 0) return;
+  const esReanudar = estadoGlobal.estado_boton === 'pausado';
+
+  logBox.innerHTML = '';
+  logOffset = 0;
+  document.getElementById('estadoVacio').classList.remove('oculto');
+  document.getElementById('accionesDescarga').classList.add('oculto');
+  document.getElementById('tbodyResultado').innerHTML = '';
+  document.getElementById('progresoRelleno').style.width = '0%';
+  document.getElementById('progresoTexto').textContent = `0 / ${casosSeleccionados.length}`;
+  cambiarVista('log');
+  iniciarCronometro();
+  setRobotState('loading', esReanudar ? 'Reanudando...' : 'Buscando documentos...', 'TRABAJANDO');
+
+  try {
+    // Si el botón ya decía "Reanudar", se manda esa decisión de una vez
+    // -- el usuario ya tomó la decisión al ver el botón, no hace falta
+    // volver a preguntarle con un diálogo. El diálogo de confirmación
+    // queda solo como respaldo para el caso (raro) de que el backend
+    // encuentre progreso que el frontend no sabía que existía.
+    let data = await enviarIniciarCasos(esReanudar ? 'reanudar' : null);
+
+    if (data.necesita_decision) {
+      const p = data.progreso || {};
+      const mensaje = `Ya hay un avance guardado para estos mismos casos:\n\n` +
+        `${p.completados || 0} de ${p.total_registros || casosSeleccionados.length} procesados ` +
+        `(${p.porcentaje || 0}%), estado: ${p.estado || '?'}.\n` +
+        `Último registro: ${p.ultimo_registro_procesado || '(ninguno)'}.\n\n` +
+        `Presiona ACEPTAR para CONTINUAR donde quedó,\n` +
+        `o CANCELAR para LIMPIAR TODO y empezar de cero.`;
+      const continuar = confirm(mensaje);
+      data = await enviarIniciarCasos(continuar ? 'reanudar' : 'limpiar');
+    }
+
+    if (!data.ok){
+      agregarLineaLog({ts: horaActual(), level: 'error', msg: data.error});
+      setRobotState('error', 'Hubo un problema', 'ERROR');
+      detenerCronometro();
+      await refrescarEstadoGlobal();
+      return;
+    }
+    estadoGlobal = { estado_boton: 'ejecutando', modo: 'casos' };
+    renderizarBotonesProceso();
+    iniciarPolling(data.lote_id);
+  } catch (err) {
+    agregarLineaLog({ts: horaActual(), level: 'error', msg: 'Error de conexión: ' + err});
+    setRobotState('error', 'Error de conexión', 'ERROR');
+    detenerCronometro();
+    await refrescarEstadoGlobal();
+  }
+});
+
+btnLimpiarProgreso.addEventListener('click', async () => {
+  if (casosSeleccionados.length === 0) {
+    alert('Primero agrega los casos (a mano o por Excel) para poder identificar de cuál progreso se trata.');
+    return;
+  }
+  if (!confirm(`Esto borra el avance guardado en el SERVIDOR para estos ${casosSeleccionados.length} caso(s) ` +
+               `(progreso, PDFs y Excel ya generados de una corrida anterior) — no se puede deshacer. ¿Continuar?`)) {
+    return;
+  }
+  btnLimpiarProgreso.disabled = true;
+  btnLimpiarCasos.disabled = true;  // se bloquean los 2 chips mientras se limpia, para evitar clics superpuestos
+  try {
+    const resp = await fetch('/api/limpiar-caso', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ casos: casosSeleccionados }),
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      alert(data.error || 'No se pudo borrar el progreso.');
+    } else {
+      alert(data.habia_progreso
+        ? 'Progreso anterior borrado. La próxima búsqueda empezará desde cero.'
+        : 'No había ningún progreso guardado para estos casos — no había nada que limpiar.');
+      estadoGlobal = { estado_boton: 'listo', modo: null };
+      renderizarBotonesProceso();
+    }
+  } catch (err) {
+    alert('Error de conexión al limpiar: ' + err);
+  } finally {
+    btnLimpiarProgreso.disabled = false;
+    btnLimpiarCasos.disabled = false;
+  }
+});
+
+/* ── Detener (compartido por los 2 paneles, ya que solo un lote puede
+   correr a la vez en el servidor) ── */
+async function detenerProceso(btnOrigen){
+  btnOrigen.disabled = true;
+  try {
+    const resp = await fetch('/api/detener', { method: 'POST' });
+    const data = await resp.json();
+    if (!data.ok){
+      alert(data.error || 'No se pudo detener.');
+    }
+    // Tanto si se pudo como si no, se refresca el estado real desde el
+    // servidor -- nunca se asume en el cliente que ya quedó detenido.
+  } catch (err) {
+    console.warn('Error al detener:', err);
+  } finally {
+    await refrescarEstadoGlobal();
+  }
+}
+
+function iniciarPolling(loteId){
+  if (pollTimer) clearTimeout(pollTimer);
+  let activo = true;
+  const tick = async () => {
+    try {
+      const resp = await fetch(`/api/estado?offset=${logOffset}`);
+      const estado = await resp.json();
+
+      estadoGlobal = { estado_boton: estado.estado_boton, modo: estado.modo };
+      renderizarBotonesProceso();
+
+      (estado.logs || []).forEach(agregarLineaLog);
+      logOffset = estado.log_total ?? logOffset;
+      renderizarRutasSugeridas(estado.rutas_sugeridas || []);
+      renderizarResumenErrores(estado.resumen_errores || []);
+      renderizarUrlsBusqueda(estado.urls_consulta || []);
+
+      const total = estado.stats?.total || 0;
+      const procesados = (estado.stats?.ok || 0) + (estado.stats?.err || 0);
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statOk').textContent = estado.stats?.ok || 0;
+      document.getElementById('statErr').textContent = estado.stats?.err || 0;
+      const pct = total > 0 ? Math.round((procesados/total)*100) : 0;
+      document.getElementById('progresoRelleno').style.width = pct + '%';
+      document.getElementById('progresoTexto').textContent = `${procesados} / ${total}`;
+      loadIndicator.setAttribute('width', (54 * pct/100).toFixed(1));
+
+      if (procesados > 0 && procesados < total && horaInicio){
+        const transcurrido = (Date.now()-horaInicio)/1000;
+        const restantes = total - procesados;
+        document.getElementById('tiempoRestante').textContent = formatoHMS((transcurrido/procesados) * restantes);
+      } else if (estado.finished){
+        document.getElementById('tiempoRestante').textContent = 'Listo';
+      }
+
+      if (estado.finished){
+        activo = false;
+        pollTimer = null;
+        detenerCronometro();
+        const huboErrores = (estado.stats?.err || 0) > 0;
+        if (estado.detenido){
+          setRobotState('error', 'Detenido — resultado parcial listo', 'DETENIDO');
+        } else if (estado.error || huboErrores){
+          setRobotState('error', huboErrores ? 'Terminó con errores' : 'Hubo un problema', 'CON ERRORES');
+        } else {
+          setRobotState('done', '¡Listo! Todo procesado', 'COMPLETADO');
+        }
+        if (estado.error){
+          agregarLineaLog({ts: horaActual(), level: 'error', msg: 'Lote terminado con error: ' + estado.error});
+        }
+        mostrarResultado(estado, loteId);
+        return;
+      }
+    } catch (err) {
+      console.warn('Error consultando /api/estado:', err);
+    }
+    // Solo se programa la siguiente consulta DESPUÉS de que esta termine
+    // por completo — así nunca hay dos peticiones al mismo tiempo pisándose
+    // (eso causaba que algunas líneas del log salieran duplicadas en pantalla,
+    // aunque el proceso real solo hubiera corrido una vez).
+    if (activo) pollTimer = setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+function pillDoc(valor, paginas){
+  const si = valor === 'Sí';
+  const icono = si ? '✓' : '–';
+  const pag = paginas ? `<span class="pag">(${paginas})</span>` : '';
+  return `<span class="pill-doc ${si ? 'si' : 'no'}">${icono}${pag}</span>`;
+}
+
+function mostrarResultado(data, loteId){
+  const tbody = document.getElementById('tbodyResultado');
+  tbody.innerHTML = '';
+  const resumenes = data.resumenes || [];
+  document.getElementById('estadoVacio').classList.toggle('oculto', resumenes.length > 0);
+  document.getElementById('accionesDescarga').classList.toggle('oculto', resumenes.length === 0);
+
+  resumenes.forEach(r => {
+    const claseFila = (r['Estado'] || '').toLowerCase().replace(/\s+/g,'');
+    const tr = document.createElement('tr');
+    tr.className = claseFila;
+    const nombrePdf = r['Archivo generado'] && r['Archivo generado'].endsWith('.pdf')
+      ? `<a class="link-descarga" href="/descargar/${loteId}/pdf/${encodeURIComponent(r['Archivo generado'])}" target="_blank" title="${r['Archivo generado']}"><i class="fa-solid fa-download"></i> ${r['Archivo generado']}</a>`
+      : `<span class="sin-pdf">${r['Archivo generado'] || '—'}</span>`;
+    tr.innerHTML = `
+      <td class="celda-archivo">${r['Archivo original']}</td>
+      <td>${r['No. Factura'] || '-'}</td>
+      <td class="celda-doc">${pillDoc(r['SIRAS'], r['Pág. SIRAS'])}</td>
+      <td class="celda-doc">${pillDoc(r['Cédula/Migrante'], r['Pág. Cédula'])}</td>
+      <td class="celda-doc">${pillDoc(r['Tarjeta Propiedad'], r['Pág. Tarjeta'])}</td>
+      <td><span class="pill-estado">${r['Estado']}</span></td>
+      <td class="celda-obs">${r['Observaciones']}</td>
+      <td>${nombrePdf}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('linkExcel').href = data.tiene_excel ? `/descargar/${loteId}/excel` : '#';
+  document.getElementById('linkZip').href = `/descargar/${loteId}/zip`;
+
+  cambiarVista('resultados');
+  archivosSeleccionados = [];
+  renderLista();
+}
+</script>
+
+</body>
+</html>

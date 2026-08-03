@@ -1,0 +1,16 @@
+flask>=3.0.3
+gunicorn>=22.0.0
+requests>=2.31.0
+pymupdf>=1.24.9
+pytesseract>=0.3.13
+Pillow>=10.0.0
+openpyxl>=3.1.2
+numpy>=1.24.0
+
+# Respaldo de OCR sin instalador aparte (se usa SOLO si Tesseract-OCR no
+# está instalado en el sistema). Es pesado (~500 MB-1 GB, incluye PyTorch)
+# y la primera vez descarga sus modelos (~65 MB), por eso NO se instala
+# por defecto: iniciar.bat lo instala automáticamente solo si detecta que
+# Tesseract no está presente. Si prefieres instalarlo tú mismo de una vez,
+# descomenta la siguiente línea:
+# easyocr==1.7.2

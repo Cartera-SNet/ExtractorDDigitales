@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<title>Extractor de Documentos Digitales — Acceso</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    body { font-family:'Inter',sans-serif; background:#f0f4ff; }
+    .card { background:white; border-radius:1.25rem; box-shadow:0 8px 40px rgba(26,58,82,0.13); padding:2.5rem 2rem; width:100%; max-width:440px; }
+    .input-wrap { position:relative; }
+    .input-icon { position:absolute; left:.875rem; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:.85rem; pointer-events:none; }
+    .field { width:100%; border:1.5px solid #e2e8f0; border-radius:.65rem; padding:.75rem 1rem .75rem 2.75rem; font-size:.9rem; color:#1e293b; outline:none; transition:border-color .2s; background:#f8fafc; }
+    .field:focus { border-color:#4f46e5; box-shadow:0 0 0 3px rgba(79,70,229,.1); }
+    .field:disabled { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+    .btn { border:none; border-radius:.75rem; padding:.8rem 1.5rem; font-size:.9rem; font-weight:600; cursor:pointer; transition:opacity .15s, transform .1s; width:100%; }
+    .btn:active { transform:scale(.98); }
+    .btn:disabled { opacity:.55; cursor:not-allowed; }
+    .btn-primary { background:linear-gradient(135deg,#1e1b4b,#4f46e5); color:white; }
+    .error { background:#fef2f2; border:1px solid #fecaca; border-radius:.65rem; padding:.7rem 1rem; color:#dc2626; font-size:.82rem; display:flex; align-items:center; gap:.5rem; }
+    .info  { background:#eff6ff; border:1px solid #bfdbfe; border-radius:.65rem; padding:.7rem 1rem; color:#1d4ed8; font-size:.82rem; display:flex; align-items:center; gap:.5rem; }
+    .spin  { display:inline-block; width:.9rem; height:.9rem; border:2px solid rgba(255,255,255,.35); border-top-color:white; border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+    .spin-blue { border-color:rgba(79,70,229,.3); border-top-color:#4f46e5; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .step { display:none; }
+    .step.active { display:block; }
+    .badge { display:inline-flex; align-items:center; gap:.4rem; background:#eef2ff; color:#4338ca; border-radius:9999px; padding:.3rem .8rem; font-size:.78rem; font-weight:600; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+<div class="card">
+    <div class="flex flex-col items-center mb-6">
+        <img src="/static/logo.png" alt="Logo" class="w-16 h-16 mb-2 rounded-xl">
+        <h1 class="text-xl font-bold text-gray-800">Extractor de Documentos Digitales</h1>
+        <p class="text-gray-500 text-sm mt-1">Ingresa tus credenciales para continuar</p>
+    </div>
+
+    <div id="errorBox" class="error mb-4 hidden">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="errorMsg"></span>
+    </div>
+    <div id="infoBox" class="info mb-4 hidden">
+        <div class="spin spin-blue"></div>
+        <span id="infoMsg">Procesando...</span>
+    </div>
+
+    <!-- ── PASO 1: Credenciales ── -->
+    <div id="step1" class="step active">
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    <i class="fas fa-server mr-1 text-gray-400"></i>Servidor
+                </label>
+                <div class="input-wrap">
+                    <i class="fas fa-server input-icon"></i>
+                    <select id="selServidor" class="field" required>
+                        <option value="">— Cargando servidores... —</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    <i class="fas fa-user mr-1 text-gray-400"></i>Usuario
+                </label>
+                <div class="input-wrap">
+                    <i class="fas fa-user input-icon"></i>
+                    <input type="text" id="inpUsuario" class="field" placeholder="Tu usuario" autocomplete="username">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    <i class="fas fa-lock mr-1 text-gray-400"></i>Contraseña
+                </label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="inpPassword" class="field" placeholder="••••••••" autocomplete="current-password">
+                    <button type="button" id="togglePass" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-eye text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            <button id="btnConectar" onclick="conectar()" class="btn btn-primary mt-2">
+                <i class="fas fa-plug mr-2"></i>Conectar
+            </button>
+        </div>
+    </div>
+
+    <!-- ── PASO 2: Empresa ── -->
+    <div id="step2" class="step">
+        <div class="flex items-center justify-between mb-5">
+            <div class="badge">
+                <i class="fas fa-check-circle"></i>
+                <span id="badgeUsuario"></span>
+            </div>
+            <button onclick="volverStep1()" class="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                <i class="fas fa-arrow-left text-xs"></i> Cambiar
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    <i class="fas fa-building mr-1 text-indigo-400"></i>Empresa / IPS
+                </label>
+                <div id="empresaDropdown" class="relative">
+                    <button type="button" id="empresaBtn" onclick="toggleDropdown()"
+                        class="field w-full flex items-center justify-between text-left cursor-pointer"
+                        style="padding-left:1rem;">
+                        <span id="empresaBtnText" class="text-gray-400 truncate text-sm">— Selecciona empresa —</span>
+                        <i class="fas fa-chevron-down text-gray-400 text-xs ml-2 flex-shrink-0" id="empresaChevron"></i>
+                    </button>
+                    <div id="empresaMenu" class="hidden absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                        <div class="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                            <input type="text" id="empresaSearch" placeholder="🔍  Buscar empresa..."
+                                oninput="filtrarEmpresas(this.value)"
+                                onclick="event.stopPropagation()"
+                                class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-indigo-400 bg-gray-50">
+                        </div>
+                        <div id="empresaLista" class="overflow-y-auto" style="max-height:220px;"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="selEmpresa" value="">
+            </div>
+            <button id="btnIngresar" onclick="ingresar()" class="btn btn-primary">
+                <i class="fas fa-sign-in-alt mr-2"></i>Ingresar al Bot
+            </button>
+        </div>
+    </div>
+</div>
+
+<p class="mt-6 text-xs text-gray-400">© 2026 — Extractor de Documentos Digitales</p>
+
+<script>
+    let servidoresData = {};
+    let credencialesOk = {};
+    let _empresasData = [];
+
+    async function cargarServidores(intento = 1) {
+        const sel = document.getElementById('selServidor');
+        try {
+            const resp = await fetch('/api/servidores', { credentials: 'include' });
+            const data = await resp.json();
+            const nombres = Object.keys(data).sort();
+            if (!nombres.length && intento < 4) {
+                sel.innerHTML = `<option value="">Cargando... (${intento}/3)</option>`;
+                return setTimeout(() => cargarServidores(intento + 1), 2500);
+            }
+            servidoresData = data;
+            sel.innerHTML = '<option value="">— Selecciona servidor —</option>';
+            nombres.forEach(n => {
+                const o = document.createElement('option');
+                o.value = n; o.textContent = n; sel.appendChild(o);
+            });
+        } catch (e) {
+            sel.innerHTML = '<option value="">Error cargando servidores</option>';
+        }
+    }
+    cargarServidores();
+
+    document.getElementById('togglePass').addEventListener('click', () => {
+        const inp = document.getElementById('inpPassword');
+        const icon = document.querySelector('#togglePass i');
+        if (inp.type === 'password') { inp.type = 'text'; icon.classList.replace('fa-eye','fa-eye-slash'); }
+        else { inp.type = 'password'; icon.classList.replace('fa-eye-slash','fa-eye'); }
+    });
+
+    function mostrarError(msg) {
+        document.getElementById('infoBox').classList.add('hidden');
+        document.getElementById('errorMsg').textContent = msg;
+        document.getElementById('errorBox').classList.remove('hidden');
+    }
+    function mostrarInfo(msg) {
+        document.getElementById('errorBox').classList.add('hidden');
+        document.getElementById('infoMsg').textContent = msg;
+        document.getElementById('infoBox').classList.remove('hidden');
+    }
+    function ocultarMensajes() {
+        document.getElementById('errorBox').classList.add('hidden');
+        document.getElementById('infoBox').classList.add('hidden');
+    }
+
+    // ── PASO 1: Conectar ──────────────────────────────────
+    async function conectar() {
+        const servidor = document.getElementById('selServidor').value;
+        const usuario  = document.getElementById('inpUsuario').value.trim();
+        const password = document.getElementById('inpPassword').value.trim();
+
+        if (!servidor) return mostrarError('Selecciona un servidor');
+        if (!usuario)  return mostrarError('Ingresa tu usuario');
+        if (!password) return mostrarError('Ingresa tu contraseña');
+
+        ocultarMensajes();
+        const btn = document.getElementById('btnConectar');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spin mx-auto"></div>';
+        mostrarInfo('Verificando credenciales...');
+
+        try {
+            const resp = await fetch('/api/auth/conectar', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ servidor, usuario, password })
+            });
+            const data = await resp.json();
+
+            if (!resp.ok || data.error) throw new Error(data.error || 'Credenciales inválidas');
+
+            credencialesOk = { servidor, usuario, password, empresas: data.empresas };
+            poblarEmpresas(data.empresas);
+
+            document.getElementById('badgeUsuario').textContent = `${usuario} @ ${servidor}`;
+            ocultarMensajes();
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+
+        } catch(err) {
+            mostrarError(err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plug mr-2"></i>Conectar';
+        }
+    }
+
+    function volverStep1() {
+        ocultarMensajes();
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active');
+    }
+
+    // ── PASO 2: Ingresar ──────────────────────────────────
+    async function ingresar() {
+        const empresa = document.getElementById('selEmpresa').value;
+        if (!empresa) return mostrarError('Selecciona una empresa');
+
+        ocultarMensajes();
+        const btn = document.getElementById('btnIngresar');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spin mx-auto"></div>';
+        mostrarInfo('Iniciando sesión...');
+
+        try {
+            const resp = await fetch('/api/auth/login', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    servidor:  credencialesOk.servidor,
+                    usuario:   credencialesOk.usuario,
+                    password:  credencialesOk.password,
+                    empresa:   empresa,
+                    empresas:  credencialesOk.empresas,
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) throw new Error(data.error || 'Error al iniciar sesión');
+            window.location.href = '/';
+        } catch(err) {
+            mostrarError(err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Ingresar al Bot';
+        }
+    }
+
+    function poblarEmpresas(empresas) {
+        _empresasData = empresas;
+        renderListaEmpresas(empresas);
+        if (empresas.length === 1) seleccionarEmpresa(empresas[0]);
+    }
+
+    function renderListaEmpresas(empresas) {
+        const lista = document.getElementById('empresaLista');
+        if (!empresas.length) {
+            lista.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Sin resultados</p>';
+            return;
+        }
+        lista.innerHTML = empresas.map(e => {
+            const sede = e.sede ? ` · ${e.sede}` : '';
+            return `<div class="px-3 py-2 cursor-pointer hover:bg-indigo-50 flex items-center gap-2 border-b border-gray-50 last:border-0"
+                        onclick='seleccionarEmpresa(${JSON.stringify(e)})'>
+                        <span class="bg-indigo-100 text-indigo-700 font-bold text-xs px-1.5 py-0.5 rounded flex-shrink-0">${e.cod}</span>
+                        <span class="text-gray-700 text-xs truncate">${e.nombre}${sede}</span>
+                    </div>`;
+        }).join('');
+    }
+
+    function filtrarEmpresas(q) {
+        const q2 = q.toLowerCase();
+        const filtradas = _empresasData.filter(e =>
+            e.cod.toLowerCase().includes(q2) ||
+            e.nombre.toLowerCase().includes(q2) ||
+            (e.sede || '').toLowerCase().includes(q2)
+        );
+        renderListaEmpresas(filtradas);
+    }
+
+    function seleccionarEmpresa(e) {
+        document.getElementById('selEmpresa').value = e.cod;
+        const sede = e.sede ? ` · ${e.sede}` : '';
+        const txt = document.getElementById('empresaBtnText');
+        txt.textContent = `${e.cod} — ${e.nombre}${sede}`;
+        txt.classList.remove('text-gray-400');
+        txt.classList.add('text-gray-800');
+        cerrarDropdown();
+    }
+
+    function toggleDropdown() {
+        const menu = document.getElementById('empresaMenu');
+        const chevron = document.getElementById('empresaChevron');
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+            document.getElementById('empresaSearch').focus();
+        } else {
+            cerrarDropdown();
+        }
+    }
+    function cerrarDropdown() {
+        document.getElementById('empresaMenu').classList.add('hidden');
+        document.getElementById('empresaChevron').style.transform = '';
+    }
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('empresaDropdown');
+        if (dd && !dd.contains(e.target)) cerrarDropdown();
+    });
+
+    ['selServidor','inpUsuario','inpPassword'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') conectar();
+        });
+    });
+    document.getElementById('inpUsuario').focus();
+</script>
+</body>
+</html>
