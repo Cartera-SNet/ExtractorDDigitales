@@ -66,7 +66,7 @@ def construir_url_archivo_pdf(ip, puerto, usuario, password, codigo_emp, no_caso
     return f"{API_ARCHIVO_PDF}?{urlencode(params)}"
 
 
-def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, rutas_archivos):
+def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, rutas_archivos, intentos=3):
     """Trae el/los archivo(s) reales de un caso — reemplaza la necesidad
     de navegar la carpeta de red a mano: esta API ya busca dentro de las
     rutas indicadas (`rutas_archivos`, una lista — se manda como el
@@ -79,7 +79,18 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
     llame decide cómo procesarlo. `raise` con el detalle si algo falla,
     en vez de devolver silenciosamente None (para poder ver el error real
     en el log del bot, no solo "no se encontró nada").
-    """
+
+    IMPORTANTE — 404 real vs. error de conexión: un 404 significa que EL
+    SERVIDOR SÍ RESPONDIÓ y dijo explícitamente "no está ahí" — eso NO se
+    reintenta (reintentar no lo va a cambiar, el documento no está en esa
+    ruta y ya). Un timeout, una conexión rechazada/reiniciada, o un error
+    5xx del servidor son técnicamente distintos: pueden ser un problema
+    pasajero de red, así que SÍ se reintentan (`intentos` veces, con una
+    pequeña espera creciente entre cada uno) antes de darse por vencido.
+    Confundir estos dos casos fue justo lo que pasó en un lote real: 24
+    casos quedaron marcados "no encontrado" sin saber si de verdad no
+    existían ahí o si fue la red — con esto, un tropiezo de red pasajero
+    ya no cuenta como si el documento no existiera."""
     params = [
         ("IpConexion", ip),
         ("BdConexion", "bd"),
@@ -93,7 +104,23 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
         if ruta:
             params.append(("RutasArchivos", ruta))
 
-    resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=30, verify=False)
+    ultimo_error_tecnico = None
+    resp = None
+    for intento in range(1, intentos + 1):
+        try:
+            resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=30, verify=False)
+            break  # se conectó y hubo respuesta (sea cual sea el código) -- ya no hay que reintentar la conexión
+        except req_lib.exceptions.RequestException as e:
+            ultimo_error_tecnico = e
+            if intento < intentos:
+                time.sleep(1.5 * intento)  # 1.5s, 3s, ... -- le da tiempo a que la red se recupere sola
+                continue
+            raise RuntimeError(
+                f"Error de conexión (esto NO es un 404 -- no se sabe todavía si el caso {no_caso} "
+                f"existe o no en esta ruta): tras {intentos} intento(s), no se pudo conectar/hubo "
+                f"timeout consultando la API. Detalle técnico: {e}. Vale la pena reintentar este "
+                f"caso más tarde en vez de asumir que el documento no existe."
+            )
 
     if resp.status_code == 404:
         rutas_intentadas = ", ".join(r for r in rutas_archivos if r)
@@ -105,6 +132,35 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
             f"Prueba marcando otra ruta en el checklist, o verifica en cuál de ellas "
             f"está realmente el documento de este caso."
         )
+
+    if resp.status_code >= 500 and intentos > 1:
+        # El servidor respondió, pero con un error propio suyo (no un 404
+        # "no está aquí") -- también vale la pena reintentar una vez más
+        # antes de rendirse, por si fue una caída momentánea del lado del
+        # cliente, no reintentado arriba porque ahí solo se reintentan
+        # errores de CONEXIÓN (sin respuesta), no de servidor (con
+        # respuesta pero con error).
+        for intento in range(2, intentos + 1):
+            time.sleep(1.5 * (intento - 1))
+            try:
+                resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=30, verify=False)
+            except req_lib.exceptions.RequestException:
+                continue
+            if resp.status_code == 404:
+                rutas_intentadas = ", ".join(r for r in rutas_archivos if r)
+                raise RuntimeError(
+                    f"La API respondió 404 (no encontrado) buscando el caso {no_caso} en: "
+                    f"{rutas_intentadas}."
+                )
+            if resp.status_code < 500:
+                break
+        if resp.status_code >= 500:
+            raise RuntimeError(
+                f"Error de conexión (esto NO es un 404): el servidor respondió {resp.status_code} "
+                f"repetidamente para el caso {no_caso}. Vale la pena reintentar este caso más "
+                f"tarde en vez de asumir que el documento no existe."
+            )
+
     resp.raise_for_status()
 
     content_type = (resp.headers.get("Content-Type") or "").lower()

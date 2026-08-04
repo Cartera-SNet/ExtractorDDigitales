@@ -414,6 +414,31 @@
     background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:5px 7px;
     word-break: break-all; user-select: all;
   }
+  /* Color por resultado -- un vistazo y ya se sabe cuál falló */
+  .fila-url { border-left:3px solid transparent; }
+  .fila-url.url-ok { border-left-color: var(--success); background: color-mix(in srgb, var(--success-light) 40%, transparent); }
+  .fila-url.url-error { border-left-color: var(--error); background: #fef2f2; }
+  .fila-url.url-pendiente { border-left-color: #cbd5e1; }
+  .badge-estado-url {
+    font-size:0.62rem; font-weight:700; padding:2px 7px; border-radius:10px; white-space:nowrap; flex-shrink:0;
+  }
+  .fila-url.url-ok .badge-estado-url { background: var(--success-light); color: var(--success); }
+  .fila-url.url-error .badge-estado-url { background:#fee2e2; color:#b91c1c; }
+  .fila-url.url-pendiente .badge-estado-url { background:#f1f5f9; color:#64748b; }
+  .mensaje-error-url {
+    margin-top:5px; font-size:0.63rem; color:#b91c1c; background:#fff5f5;
+    border:1px solid #fecaca; border-radius:6px; padding:4px 7px;
+  }
+  /* Buscador + filtro de la pestaña de URLs */
+  .fila-filtros-urls {
+    display:flex; align-items:center; gap:8px; padding:0 4px 6px;
+  }
+  .fila-filtros-urls .buscador-checklist { margin:0; flex:1 1 auto; width:auto; }
+  .check-solo-errores {
+    display:flex; align-items:center; gap:5px; font-size:0.65rem; color:#b91c1c;
+    cursor:pointer; user-select:none; white-space:nowrap; flex-shrink:0; font-weight:600;
+  }
+  .check-solo-errores input { accent-color:#dc2626; cursor:pointer; }
   .check-maestro { border-bottom:1px dashed var(--border); padding:4px 10px 6px; margin-bottom:2px; font-size:0.65rem; }
   .check-maestro i { font-style:normal; color: var(--text-secondary); }
 </style>
@@ -626,6 +651,13 @@
 
         <div class="vista" id="vistaUrls">
           <p class="resumen-explicacion">La URL exacta que se le mandó a la API por cada caso/ruta intentado (con datos reales) — cópiala y pégala en el navegador para probarla a mano, útil cuando algo da 404 y quieres verificar si es un problema de ruta o de otra cosa.</p>
+          <div class="fila-filtros-urls">
+            <input type="text" id="buscarUrls" class="buscador-checklist" placeholder="🔍 Buscar por caso, ruta o URL..." oninput="filtrarUrlsBusqueda()">
+            <label class="check-solo-errores">
+              <input type="checkbox" id="soloErroresUrls" onchange="filtrarUrlsBusqueda()">
+              Solo errores
+            </label>
+          </div>
           <div class="lista-resumen" id="listaUrlsBusqueda">
             <p class="sin-datos">Todavía no se ha intentado ninguna búsqueda en esta corrida.</p>
           </div>
@@ -1099,28 +1131,69 @@ function renderizarResumenErrores(lista){
   `).join('');
 }
 
+let ultimaListaUrls = [];      // lista completa tal como llega del servidor
+let filasUrlsRenderizadas = []; // lo que quedó realmente en pantalla (tras buscador/filtro), para que "Copiar" siempre lea lo correcto
+
 function renderizarUrlsBusqueda(lista){
+  ultimaListaUrls = lista || [];
+  filtrarUrlsBusqueda();
+}
+
+function filtrarUrlsBusqueda(){
   const cont = document.getElementById('listaUrlsBusqueda');
-  if (!lista.length){
+  const texto = (document.getElementById('buscarUrls')?.value || '').trim().toLowerCase();
+  const soloErrores = document.getElementById('soloErroresUrls')?.checked;
+
+  if (!ultimaListaUrls.length){
     cont.innerHTML = '<p class="sin-datos">Todavía no se ha intentado ninguna búsqueda en esta corrida.</p>';
+    filasUrlsRenderizadas = [];
     return;
   }
-  cont.innerHTML = lista.map((item, i) => `
-    <div class="fila-url">
+
+  let lista = ultimaListaUrls;
+  if (soloErrores) lista = lista.filter(item => item.estado === 'error');
+  if (texto) {
+    lista = lista.filter(item =>
+      String(item.caso).toLowerCase().includes(texto) ||
+      String(item.ruta).toLowerCase().includes(texto) ||
+      String(item.url).toLowerCase().includes(texto) ||
+      String(item.mensaje || '').toLowerCase().includes(texto)
+    );
+  }
+  filasUrlsRenderizadas = lista;
+
+  if (!lista.length){
+    cont.innerHTML = '<p class="sin-datos">Ningún resultado coincide con el filtro.</p>';
+    return;
+  }
+
+  const ETIQUETA = {
+    encontrado: { clase: 'url-ok', icono: '✅', texto: 'Encontrado' },
+    error:      { clase: 'url-error', icono: '❌', texto: 'Error' },
+    pendiente:  { clase: 'url-pendiente', icono: '⏳', texto: 'Consultando...' },
+  };
+
+  cont.innerHTML = lista.map((item, i) => {
+    const info = ETIQUETA[item.estado] || ETIQUETA.pendiente;
+    return `
+    <div class="fila-url ${info.clase}">
       <div class="fila-url-cabecera">
         <div class="fila-url-info">
+          <span class="badge-estado-url" title="${escaparHtml(item.mensaje || '')}">${info.icono} ${info.texto}</span>
           <span class="caso">Caso ${escaparHtml(item.caso)}</span>
           <span class="badge-ruta-url" title="${escaparHtml(item.ruta)}">📍 ${escaparHtml(item.ruta)}</span>
         </div>
-        <button class="btn-copiar-url" data-url-idx="${i}" onclick="copiarUrlBusqueda(this, ${i})">📋 Copiar</button>
+        <button class="btn-copiar-url" onclick="copiarUrlBusqueda(this, ${i})">📋 Copiar</button>
       </div>
-      <div class="caja-url" id="urlTexto${i}">${escaparHtml(item.url)}</div>
+      <div class="caja-url">${escaparHtml(item.url)}</div>
+      ${item.estado === 'error' ? `<div class="mensaje-error-url">${escaparHtml(item.mensaje || '')}</div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function copiarUrlBusqueda(btn, idx){
-  const texto = document.getElementById('urlTexto' + idx).textContent;
+  const texto = (filasUrlsRenderizadas[idx] || {}).url || '';
   try {
     await navigator.clipboard.writeText(texto);
   } catch (err) {

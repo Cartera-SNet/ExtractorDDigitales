@@ -45,11 +45,21 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
+
+def _carpeta_datos_escribibles():
+    """Ver la misma función en app.py -- junto al .exe real cuando está
+    empaquetado, no en la carpeta temporal de PyInstaller."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+BASE_DIR = _carpeta_datos_escribibles()
 ESTADO_DIR = BASE_DIR / "estado"
 ESTADO_DIR.mkdir(exist_ok=True)
 

@@ -1298,6 +1298,7 @@ def resumir_resultado(nombre_archivo, factura, paginas_por_categoria, paginas):
 
     return {
         "Archivo original": nombre_archivo,
+        "No. Caso": "",  # se completa en app.py para el modo "Factura/Caso" -- en "Subir PDF" no hay caso, queda vacío
         "No. Factura": factura,
         "SIRAS": "Sí" if encontrados["SIRAS"] else "No",
         "Pág. SIRAS": paginas_str(paginas_por_categoria.get("SIRAS", [])),

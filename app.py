@@ -29,6 +29,7 @@ import io
 import csv
 import json
 import re
+import sys
 import base64
 import shutil
 import fitz
@@ -55,7 +56,18 @@ except Exception:
     EXCEL_OK = False
 
 
-BASE_DIR = Path(__file__).resolve().parent
+def _carpeta_datos_escribibles():
+    """Carpeta donde viven los datos que SÍ deben persistir entre
+    ejecuciones (uploads temporales, PDFs/Excel de salida). Cuando esto
+    corre empaquetado como .exe (PyInstaller onefile), `__file__` apunta
+    a una carpeta temporal que Windows borra al cerrar la app -- los
+    datos de trabajo tienen que vivir junto al .exe REAL, no ahí."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+BASE_DIR = _carpeta_datos_escribibles()
 UPLOADS_DIR = BASE_DIR / "uploads"
 
 # Se detecta sola si esto corre en la nube (Railway pone estas variables
@@ -224,9 +236,30 @@ def _registrar_url_consulta(no_caso, nombre_ruta, url):
     porque donde más ayuda es cuando dio 404 y se quiere probar a mano
     en el navegador si de verdad no está ahí o si es un problema de
     parámetros. Vive en su propia pestaña ('URLs de búsqueda'), separada
-    de 'Rutas sugeridas' (que solo muestra dónde SÍ se encontró)."""
+    de 'Rutas sugeridas' (que solo muestra dónde SÍ se encontró).
+
+    Se registra ANTES de saber si la llamada va a funcionar o no (por
+    eso arranca en estado "pendiente") — devuelve el índice de esta
+    entrada para que, apenas se sepa el resultado real,
+    `_actualizar_resultado_url_consulta` lo complete sin tener que
+    buscarlo de nuevo."""
     with ESTADO_LOCK:
-        ESTADO_ACTUAL["urls_consulta"].append({"caso": no_caso, "ruta": nombre_ruta, "url": url})
+        lista = ESTADO_ACTUAL["urls_consulta"]
+        lista.append({"caso": no_caso, "ruta": nombre_ruta, "url": url,
+                       "estado": "pendiente", "mensaje": ""})
+        return len(lista) - 1
+
+
+def _actualizar_resultado_url_consulta(indice, estado, mensaje=""):
+    """Completa una entrada ya registrada con si esa URL SÍ encontró el
+    documento o dio error — así la pestaña 'URLs de búsqueda' puede
+    mostrar de una vez cuáles fallaron sin tener que adivinar por el
+    color de otra pestaña."""
+    with ESTADO_LOCK:
+        lista = ESTADO_ACTUAL["urls_consulta"]
+        if 0 <= indice < len(lista):
+            lista[indice]["estado"] = estado
+            lista[indice]["mensaje"] = mensaje
 
 
 def _mensaje_simple(error, limite=140):
@@ -432,7 +465,7 @@ def procesar_lote(rutas_pdf):
 # ─────────────────────────────────────────────────────────────
 
 COLUMNAS = [
-    "Archivo original", "No. Factura", "SIRAS", "Pág. SIRAS",
+    "Archivo original", "No. Caso", "No. Factura", "SIRAS", "Pág. SIRAS",
     "Cédula/Migrante", "Pág. Cédula", "Tarjeta Propiedad", "Pág. Tarjeta",
     "Archivo generado", "Estado", "Observaciones",
 ]
@@ -1208,7 +1241,7 @@ def _obtener_documentos_caso(caso, sesion_datos, tipos_documento, rutas, clave_l
             sesion_datos["ip"], sesion_datos["puerto"], sesion_datos["usuario"],
             sesion_datos["password"], sesion_datos["empresa"], no_caso, [ruta_red],
         )
-        _registrar_url_consulta(no_caso, nombre_ruta, url_debug)
+        idx_url = _registrar_url_consulta(no_caso, nombre_ruta, url_debug)
         try:
             contenido, es_binario, content_type = auth.get_archivo_pdf_api(
                 sesion_datos["ip"], sesion_datos["puerto"], sesion_datos["usuario"],
@@ -1218,6 +1251,7 @@ def _obtener_documentos_caso(caso, sesion_datos, tipos_documento, rutas, clave_l
             resultado = _procesar_respuesta_archivo_pdf(contenido, es_binario, content_type, ruta_salida)
             _log(f"Caso {no_caso}: ENCONTRADO en la ruta \"{nombre_ruta}\"", level="ok")
             _registrar_ruta_sugerida(no_caso, nombre_ruta)
+            _actualizar_resultado_url_consulta(idx_url, "encontrado")
             if clave_lote:
                 # Se marca de una que este caso YA trajo al menos un
                 # archivo real de la API -- si el proceso se corta justo
@@ -1227,6 +1261,7 @@ def _obtener_documentos_caso(caso, sesion_datos, tipos_documento, rutas, clave_l
                 prog.registrar_archivo_descargado(clave_lote, no_caso)
             return ("ok", resultado, nombre_ruta)
         except Exception as e:
+            _actualizar_resultado_url_consulta(idx_url, "error", str(e))
             _log(f"Caso {no_caso}: no está en \"{nombre_ruta}\" ({e})", level="warn")
             return ("error", f"{nombre_ruta}: {e}", None)
 
@@ -1280,7 +1315,7 @@ def _obtener_documentos_caso(caso, sesion_datos, tipos_documento, rutas, clave_l
     return ruta_combinada
 
 
-def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, clave_lote=None):
+def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, carpeta_salida, clave_lote=None):
     caso = item
     no_caso = str(caso.get("NoCaso", "")).strip()
     no_factura = str(caso.get("NoFactura", "")).strip()
@@ -1309,6 +1344,27 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
         } or None  # None = no reciben ningún tipo reconocido, no se filtra nada (se incluye todo lo detectado)
         resumen, generado = _procesar_un_archivo(
             (f"{nombre_referencia}.pdf", ruta_pdf), categorias_permitidas=categorias_permitidas)
+        resumen["No. Caso"] = no_caso
+
+        # CRÍTICO: el PDF se escribe a disco AQUÍ MISMO, en el mismo hilo
+        # y ANTES de marcar el registro como "completado" en progreso.json
+        # -- nunca al revés. Antes, el orden era: marcar completado en
+        # este hilo, y escribir a disco DESPUÉS en el hilo principal
+        # (cuando `as_completed` entregaba el resultado). Eso dejaba una
+        # ventana real: si llegaba una señal de "Detener" justo entre esos
+        # dos pasos, el caso quedaba registrado como listo en
+        # progreso.json (con su "Archivo generado" y todo) pero el PDF
+        # nunca se alcanzaba a escribir -- exactamente lo que le pasó a 2
+        # casos reales de un lote de producción (quedaron en el Excel
+        # como completados, pero no estaban en el ZIP final). Escribiendo
+        # acá, si el proceso se corta justo después, como mucho se pierde
+        # ESTE registro completo (no queda a medias entre "dice que sí"
+        # y "en realidad no").
+        if generado:
+            nombre_pdf, contenido = generado
+            with open(carpeta_salida / nombre_pdf, "wb") as fh:
+                fh.write(contenido)
+
         if clave_lote:
             # Se persiste INMEDIATAMENTE, no se espera a que termine el
             # lote entero -- si el proceso se corta un segundo después,
@@ -1322,6 +1378,7 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
         _registrar_error_resumen(no_caso, e)
         resumen = {
             "Archivo original": nombre_referencia,
+            "No. Caso": no_caso,
             "No. Factura": no_factura,
             "SIRAS": "?", "Pág. SIRAS": "",
             "Cédula/Migrante": "?", "Pág. Cédula": "",
@@ -1340,6 +1397,7 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
         _registrar_error_resumen(no_caso, f"Error inesperado: {e}")
         resumen = {
             "Archivo original": nombre_referencia,
+            "No. Caso": no_caso,
             "No. Factura": no_factura,
             "SIRAS": "?", "Pág. SIRAS": "",
             "Cédula/Migrante": "?", "Pág. Cédula": "",
@@ -1379,19 +1437,12 @@ def _ejecutar_casos_en_hilo(clave_lote, casos, sesion_datos, tipos_documento, ru
         ex = ThreadPoolExecutor(max_workers=HILOS_ARCHIVOS)
         futuros = {
             ex.submit(_procesar_un_caso, caso, sesion_datos, tipos_documento, rutas,
-                      carpeta_lote, clave_lote): idx
+                      carpeta_lote, carpeta_salida, clave_lote): idx
             for idx, caso in enumerate(pendientes)
         }
         try:
             for futuro in as_completed(futuros):
-                _, generado = futuro.result()
-                if generado:
-                    # Se escribe a disco DE UNA, no se espera al final del
-                    # lote -- si el proceso se corta un segundo después,
-                    # este PDF ya quedó guardado y no se pierde.
-                    nombre_pdf, contenido = generado
-                    with open(carpeta_salida / nombre_pdf, "wb") as fh:
-                        fh.write(contenido)
+                futuro.result()  # el PDF ya se escribió a disco DENTRO de _procesar_un_caso (ver ahí el porqué)
                 if EVENTO_DETENER.is_set():
                     detenido = True
                     _log("Detención solicitada — se completan los casos que ya estaban en "
@@ -1525,19 +1576,39 @@ def iniciar_casos():
     elif decision == "reanudar":
         _log("Reanudando lote donde había quedado...", level="info")
 
+    # Si se está reanudando, los casos que YA quedaron resueltos en una
+    # corrida anterior tienen que seguir contando en las estadísticas —
+    # si no, "OK/Error" en pantalla solo refleja lo de ESTA corrida y
+    # nunca suma hasta el total real (ej. "273 OK, 23 Error" cuando en
+    # realidad ya había 64 casos más resueltos antes, que quedan
+    # invisibles en el contador aunque sí estén en el Excel/ZIP final).
+    ok_previos = err_previos = 0
+    errores_previos = []
+    for no_caso_previo, resumen_previo in prog.resumenes_ya_completados(clave_lote):
+        estado_previo = resumen_previo.get("Estado", "")
+        if estado_previo in ("COMPLETO", "INCOMPLETO"):
+            ok_previos += 1
+        else:
+            err_previos += 1
+            referencia = resumen_previo.get("No. Factura") or no_caso_previo
+            errores_previos.append({
+                "referencia": referencia,
+                "mensaje": resumen_previo.get("Observaciones", "Sin documentos identificados"),
+            })
+
     with ESTADO_LOCK:
         ESTADO_ACTUAL.update({
             "running": True,
             "finished": False,
             "error": None,
             "logs": [],
-            "stats": {"total": len(casos), "ok": 0, "err": 0},
+            "stats": {"total": len(casos), "ok": ok_previos, "err": err_previos},
             "lote_id": clave_lote,
             "resumenes": [],
             "pdfs": [],
             "tiene_excel": False,
             "rutas_sugeridas": [],
-            "resumen_errores": [],
+            "resumen_errores": errores_previos,
             "urls_consulta": [],
             "modo": "casos",
         })
