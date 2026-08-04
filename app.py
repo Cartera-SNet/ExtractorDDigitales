@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 """
 Extractor de Documentos Digitales — v1 (modo local / pruebas)
 =============================================================
@@ -1751,6 +1752,3 @@ if __name__ == "__main__":
         print("=" * 60)
         threading.Thread(target=_abrir_navegador_diferido, args=(URL_LOCAL,), daemon=True).start()
         app.run(host="0.0.0.0", port=puerto, debug=False)
-
-
-#Prueba123
