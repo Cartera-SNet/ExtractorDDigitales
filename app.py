@@ -350,7 +350,31 @@ def _log_detalle_resultado(nombre_original, paginas, resumen):
              f"misma foto, en la(s) página(s) {', '.join(map(str, divididas))}", level="info")
 
 
-def _procesar_un_archivo(item, categorias_permitidas=None):
+def _procesar_un_archivo(item, categorias_permitidas=None, factura_conocida=None):
+    """`factura_conocida`: si ya se sabe con certeza qué factura/caso es
+    este archivo (modo "Factura/Caso" — viene del Excel o de lo que
+    escribió el usuario a mano), se usa SIEMPRE esa como nombre del PDF
+    de salida, sin intentar leer un número de factura desde el propio
+    contenido del documento.
+
+    Esta es la función responsable del bug reportado: antes, incluso en
+    el modo "Factura/Caso", se llamaba siempre a
+    `clf.extraer_numero_factura(paginas, nombre_original)` -- pensada
+    para el modo "Subir PDF", donde SÍ hace falta leer la factura desde
+    el propio documento porque es la única forma de saberla. El
+    problema real es que algunos documentos (ej. el formulario SIRAS)
+    traen su propio número interno de factura/radicado (ej. "A231123",
+    "BH233860"), que no tiene por qué coincidir con el número que el
+    usuario ya tenía identificado para ese caso en su Excel. Ese número
+    interno terminaba reemplazando al que el usuario suministró,
+    rompiendo la trazabilidad contra su propia lista.
+
+    Ahora: si `factura_conocida` viene con algo (siempre que se llame
+    desde el modo Factura/Caso), esa manda siempre y no se toca. La
+    lectura desde el contenido del documento (`extraer_numero_factura`)
+    queda como estaba, intacta, solo que ahora es el ÚLTIMO recurso —
+    se sigue usando tal cual en el modo "Subir PDF", donde no hay ningún
+    otro dato disponible."""
     nombre_original, ruta = item
     _log(f"Procesando {nombre_original}...")
     try:
@@ -359,7 +383,7 @@ def _procesar_un_archivo(item, categorias_permitidas=None):
             _log(f"{nombre_original}: detención solicitada — se sigue con lo que ya se alcanzó "
                  f"a analizar de este archivo (puede quedar INCOMPLETO por eso, no porque falten "
                  f"documentos de verdad).", level="warn")
-        factura = clf.extraer_numero_factura(paginas, nombre_original)
+        factura = factura_conocida or clf.extraer_numero_factura(paginas, nombre_original)
         pdf_bytes, por_categoria, orden = clf.construir_pdf_unificado(
             str(ruta), paginas, categorias_permitidas=categorias_permitidas
         )
@@ -1386,9 +1410,11 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
     caso = item
     no_caso = str(caso.get("NoCaso", "")).strip()
     no_factura = str(caso.get("NoFactura", "")).strip()
-    # Solo para mostrar en el log/tabla mientras no hay PDF real todavía;
-    # el nombre final del PDF de salida lo pone clasificador.py usando el
-    # número de factura que trae el propio documento, no este valor.
+    # Este es el identificador que el USUARIO ya trae identificado para
+    # este caso (del Excel, o de lo que escribió a mano) -- el PDF de
+    # salida se nombra SIEMPRE con este valor en el modo "Factura/Caso",
+    # nunca con un número que el propio documento traiga por dentro (ver
+    # `factura_conocida` en `_procesar_un_archivo` para el porqué).
     nombre_referencia = no_factura or no_caso
     rutas_nombres = ", ".join(r.get("nombre", "?") for r in rutas) if rutas else "(ninguna)"
     _log(f"Buscando documentos del caso {no_caso}... (usuario: {sesion_datos.get('usuario','?')}, "
@@ -1410,7 +1436,8 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
             if (cat := chk.categoria_para_nombre(doc.get("nombre", "")))
         } or None  # None = no reciben ningún tipo reconocido, no se filtra nada (se incluye todo lo detectado)
         resumen, generado = _procesar_un_archivo(
-            (f"{nombre_referencia}.pdf", ruta_pdf), categorias_permitidas=categorias_permitidas)
+            (f"{nombre_referencia}.pdf", ruta_pdf), categorias_permitidas=categorias_permitidas,
+            factura_conocida=nombre_referencia)
         resumen["No. Caso"] = no_caso
 
         # CRÍTICO: el PDF se escribe a disco AQUÍ MISMO, en el mismo hilo
