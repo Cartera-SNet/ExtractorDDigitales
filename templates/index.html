@@ -440,6 +440,8 @@
   }
   .check-solo-errores input { accent-color:#dc2626; cursor:pointer; }
   .check-maestro { border-bottom:1px dashed var(--border); padding:4px 10px 6px; margin-bottom:2px; font-size:0.65rem; }
+  .chip-peligro-link { color:#b91c1c !important; border-color:#fecaca !important; }
+  .chip-peligro-link:hover { background:#fef2f2 !important; }
   .check-maestro i { font-style:normal; color: var(--text-secondary); }
 </style>
 </head>
@@ -681,6 +683,7 @@
               <thead>
                 <tr>
                   <th>Archivo</th>
+                  <th>Caso</th>
                   <th>Factura</th>
                   <th>SIRAS</th>
                   <th>Cédula/Mig.</th>
@@ -696,6 +699,7 @@
           <div class="acciones-descarga oculto" id="accionesDescarga">
             <a class="btn secundario" id="linkExcel" href="#">📊 Excel</a>
             <a class="btn secundario" id="linkZip" href="#">🗂️ ZIP completo</a>
+            <a class="btn secundario chip-peligro-link oculto" id="linkErrores" href="#">⚠️ Excel de errores</a>
           </div>
           <div class="empty-state" id="estadoVacio">
             <div><i class="fa-solid fa-inbox"></i>Todavía no hay resultados — procesa algún PDF primero.</div>
@@ -1739,6 +1743,7 @@ function mostrarResultado(data, loteId){
       : `<span class="sin-pdf">${r['Archivo generado'] || '—'}</span>`;
     tr.innerHTML = `
       <td class="celda-archivo">${r['Archivo original']}</td>
+      <td>${r['No. Caso'] || '-'}</td>
       <td>${r['No. Factura'] || '-'}</td>
       <td class="celda-doc">${pillDoc(r['SIRAS'], r['Pág. SIRAS'])}</td>
       <td class="celda-doc">${pillDoc(r['Cédula/Migrante'], r['Pág. Cédula'])}</td>
@@ -1752,6 +1757,14 @@ function mostrarResultado(data, loteId){
 
   document.getElementById('linkExcel').href = data.tiene_excel ? `/descargar/${loteId}/excel` : '#';
   document.getElementById('linkZip').href = `/descargar/${loteId}/zip`;
+
+  // El botón de "Excel de errores" solo se muestra si de verdad hubo
+  // algún caso sin documento real descargado en este lote -- si todo
+  // salió bien, no tiene sentido ofrecer un Excel vacío.
+  const huboErroresReales = resumenes.some(r => !['COMPLETO', 'INCOMPLETO'].includes(r['Estado']));
+  const linkErrores = document.getElementById('linkErrores');
+  linkErrores.classList.toggle('oculto', !huboErroresReales);
+  linkErrores.href = huboErroresReales ? `/descargar/${loteId}/errores` : '#';
 
   cambiarVista('resultados');
   archivosSeleccionados = [];

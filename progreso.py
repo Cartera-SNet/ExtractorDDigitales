@@ -284,17 +284,27 @@ def marcar_estado(clave_lote: str, estado: str):
 def registros_pendientes(clave_lote: str, casos):
     """Devuelve (pendientes, progreso_actual).
 
-    `pendientes` es la sub-lista de `casos` que TODAVÍA no están ni en
-    completados ni en con_error -- son los únicos que hace falta (re)
-    procesar en esta corrida. Si no hay progreso previo, `pendientes`
-    es la lista completa (lote nuevo) y `progreso_actual` es None.
+    `pendientes` es la sub-lista de `casos` que hace falta (re)procesar
+    en esta corrida:
+      - Nunca vuelve a tocar un caso que ya está en `completados` (sea
+        COMPLETO, INCOMPLETO o SIN DOCUMENTOS -- ya se descargó su
+        archivo real, si lo tenía, y ya se sabe su resultado).
+      - SÍ vuelve a intentar los casos que quedaron en `con_error`
+        (nunca se llegó a descargar nada) -- por diseño: si el usuario
+        vuelve a darle "Buscar y procesar" con el mismo lote SIN borrar
+        el progreso, la intención natural es "reintenta lo que falló",
+        no "ignóralo para siempre a menos que borre todo". Si el
+        reintento tiene éxito, `marcar_registro_completado` ya se
+        encarga de sacarlo de `con_error` y pasarlo a `completados`; si
+        vuelve a fallar, `marcar_registro_error` simplemente actualiza
+        el mismo registro (no se duplica).
 
-    Esto es lo que garantiza que nunca se reprocese un registro ya
-    terminado ni se vuelva a descargar su archivo."""
+    Si no hay progreso previo, `pendientes` es la lista completa (lote
+    nuevo) y `progreso_actual` es None."""
     data = cargar_progreso(clave_lote)
     if data is None:
         return list(casos), None
-    ya_resueltos = set(data["completados"]) | {e["no_caso"] for e in data["con_error"]}
+    ya_resueltos = set(data["completados"])  # los con_error NO cuentan como resueltos -- se reintentan solos
     pendientes = [c for c in casos if str(c.get("NoCaso", "")).strip() not in ya_resueltos]
     return pendientes, data
 

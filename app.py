@@ -373,13 +373,25 @@ def _procesar_un_archivo(item, categorias_permitidas=None):
             resumen["Archivo generado"] = nombre_salida
             generado = (nombre_salida, pdf_bytes)
         else:
-            resumen["Archivo generado"] = "(no generado - 0 páginas identificadas)"
+            # Vacío DE VERDAD, no una frase -- así cualquier filtro simple
+            # sobre esta columna ("¿está vacía?") encuentra TODOS los
+            # casos sin PDF real, sin tener que fijarse también en la
+            # columna Estado. El motivo (0 páginas identificadas) ya
+            # queda explicado en Observaciones.
+            resumen["Archivo generado"] = ""
             generado = None
 
         estado = resumen.get("Estado", "")
         nivel = "ok" if estado == "COMPLETO" else ("warn" if estado == "INCOMPLETO" else "error")
         _log(f"{nombre_original} → {estado} (factura {factura})", level=nivel)
         _sumar_stat("ok" if estado in ("COMPLETO", "INCOMPLETO") else "err")
+        if estado == "SIN DOCUMENTOS":
+            # Antes esto NO aparecía en la pestaña "Errores" del panel
+            # (solo se veía si uno revisaba el Excel a fondo) -- por eso
+            # el panel y el Excel podían "verse" distintos aunque los
+            # datos de fondo fueran los mismos. Ahora cualquier caso sin
+            # un PDF real descargado aparece en un solo lugar consistente.
+            _registrar_error_resumen(nombre_original, "No se identificó ningún documento (revisar manualmente).")
         return resumen, generado
 
     except Exception as e:
@@ -1000,6 +1012,60 @@ def descargar_excel(lote_id):
     return send_file(ruta, as_attachment=True, download_name="Informe_resultado.xlsx")
 
 
+@app.route("/descargar/<lote_id>/errores")
+@auth.login_requerido
+def descargar_errores_excel(lote_id):
+    """Excel con SOLO los casos que no terminaron con un documento real
+    descargado (ERROR o SIN DOCUMENTOS) — con las columnas NoCaso/
+    NoFactura, en el MISMO formato que la plantilla de subida, para que
+    se pueda volver a cargar directo al bot y reintentar sin tener que
+    armar la lista a mano."""
+    if not EXCEL_OK:
+        return jsonify({"error": "openpyxl no está instalado"}), 500
+    ruta_informe = OUTPUTS_DIR / lote_id / "Informe_resultado.xlsx"
+    if not ruta_informe.exists():
+        return "Archivo no encontrado", 404
+
+    wb_original = openpyxl.load_workbook(ruta_informe)
+    ws_original = wb_original.active
+    encabezados = [c.value for c in ws_original[1]]
+    idx_caso = encabezados.index("No. Caso") if "No. Caso" in encabezados else None
+    idx_factura = encabezados.index("No. Factura")
+    idx_estado = encabezados.index("Estado")
+
+    filas_error = []
+    for fila in ws_original.iter_rows(min_row=2, values_only=True):
+        if fila[idx_estado] in ("COMPLETO", "INCOMPLETO"):
+            continue  # este sí trajo un documento real -- no va en el Excel de errores
+        no_caso = fila[idx_caso] if idx_caso is not None else ""
+        no_factura = fila[idx_factura]
+        filas_error.append((no_caso or "", no_factura or ""))
+
+    if not filas_error:
+        return jsonify({"ok": False, "error": "No hay casos con error en este lote — todo se descargó bien."}), 404
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Casos"
+    ws.append(["NoCaso", "NoFactura"])
+    for no_caso, no_factura in filas_error:
+        ws.append([no_caso, no_factura])
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 15
+
+    buffer = io.BytesIO()  # este Excel es minúsculo (2 columnas, unas pocas filas) -- no hay riesgo de memoria como con el ZIP grande
+    wb.save(buffer)
+    buffer.seek(0)
+    return send_file(
+        buffer, as_attachment=True, download_name=f"casos_con_error_{lote_id}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 def _nombre_zip_por_empresa(lote_id):
     """Arma el nombre del .zip usando la empresa con la que se inició
     sesión: "{código} - {nombre de la IPS}" (usa la sede/nombre comercial
@@ -1424,9 +1490,17 @@ def _ejecutar_casos_en_hilo(clave_lote, casos, sesion_datos, tipos_documento, ru
 
     pendientes, progreso_previo = prog.registros_pendientes(clave_lote, casos)
     ya_completados = len(casos) - len(pendientes)
+    reintentos = 0
+    if progreso_previo:
+        con_error_previo = {e["no_caso"] for e in progreso_previo.get("con_error", [])}
+        reintentos = sum(1 for c in pendientes if str(c.get("NoCaso", "")).strip() in con_error_previo)
+        prog.marcar_estado(clave_lote, "en_proceso")  # por si el lote ya estaba "completado" y esto es un reintento
     if progreso_previo and ya_completados:
         _log(f"Reanudando lote — {ya_completados} de {len(casos)} caso(s) ya estaban "
              f"resueltos en un intento anterior, no se vuelven a procesar.", level="info")
+    if reintentos:
+        _log(f"De los pendientes, {reintentos} ya habían fallado antes (quedaron en error) — "
+             f"se van a reintentar automáticamente.", level="info")
     _log(f"Iniciando búsqueda de {len(pendientes)} caso(s) pendiente(s) "
          f"(de {len(casos)} en total)...")
 
@@ -1582,9 +1656,20 @@ def iniciar_casos():
     # nunca suma hasta el total real (ej. "273 OK, 23 Error" cuando en
     # realidad ya había 64 casos más resueltos antes, que quedan
     # invisibles en el contador aunque sí estén en el Excel/ZIP final).
+    #
+    # OJO: los que están a punto de REINTENTARSE en esta misma corrida
+    # (los que quedaron en error antes) NO se sumsn acá -- si se sumaran
+    # y el reintento tiene éxito, quedarían contados dos veces (una vez
+    # aquí como "error previo" que nunca se resta, y otra vez cuando
+    # `_sumar_stat("ok")` dispare al terminar el reintento).
+    pendientes_ahora, _ = prog.registros_pendientes(clave_lote, casos)
+    no_casos_pendientes = {str(c.get("NoCaso", "")).strip() for c in pendientes_ahora}
+
     ok_previos = err_previos = 0
     errores_previos = []
     for no_caso_previo, resumen_previo in prog.resumenes_ya_completados(clave_lote):
+        if no_caso_previo in no_casos_pendientes:
+            continue  # se va a reintentar ahora -- se contará solo, con su resultado nuevo
         estado_previo = resumen_previo.get("Estado", "")
         if estado_previo in ("COMPLETO", "INCOMPLETO"):
             ok_previos += 1
