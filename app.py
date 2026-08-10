@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 Extractor de Documentos Digitales — v1 (modo local / pruebas)
 =============================================================
@@ -353,28 +352,21 @@ def _log_detalle_resultado(nombre_original, paginas, resumen):
 def _procesar_un_archivo(item, categorias_permitidas=None, factura_conocida=None):
     """`factura_conocida`: si ya se sabe con certeza qué factura/caso es
     este archivo (modo "Factura/Caso" — viene del Excel o de lo que
-    escribió el usuario a mano), se usa SIEMPRE esa como nombre del PDF
-    de salida, sin intentar leer un número de factura desde el propio
-    contenido del documento.
+    escribió el usuario a mano), se usa SIEMPRE esa, sin intentar leer
+    un número de factura desde el contenido del documento.
 
-    Esta es la función responsable del bug reportado: antes, incluso en
-    el modo "Factura/Caso", se llamaba siempre a
-    `clf.extraer_numero_factura(paginas, nombre_original)` -- pensada
-    para el modo "Subir PDF", donde SÍ hace falta leer la factura desde
-    el propio documento porque es la única forma de saberla. El
+    Antes, incluso en el modo Factura/Caso, se intentaba primero leer
+    "No. Factura" del propio texto del documento (pensado para el modo
+    "Subir PDF", donde es la ÚNICA forma de saber la factura) — el
     problema real es que algunos documentos (ej. el formulario SIRAS)
-    traen su propio número interno de factura/radicado (ej. "A231123",
-    "BH233860"), que no tiene por qué coincidir con el número que el
-    usuario ya tenía identificado para ese caso en su Excel. Ese número
-    interno terminaba reemplazando al que el usuario suministró,
-    rompiendo la trazabilidad contra su propia lista.
-
-    Ahora: si `factura_conocida` viene con algo (siempre que se llame
-    desde el modo Factura/Caso), esa manda siempre y no se toca. La
-    lectura desde el contenido del documento (`extraer_numero_factura`)
-    queda como estaba, intacta, solo que ahora es el ÚLTIMO recurso —
-    se sigue usando tal cual en el modo "Subir PDF", donde no hay ningún
-    otro dato disponible."""
+    traen su propio número interno de factura/radicado, que no tiene por
+    qué coincidir con el número que el usuario ya tenía identificado
+    para ese caso. Eso hacía que el PDF de salida terminara nombrado con
+    un número distinto al que el usuario había ingresado, rompiendo la
+    trazabilidad contra su propia lista. Ahora, si ya se sabe el
+    identificador de antemano, ese manda siempre; la lectura desde el
+    contenido del documento queda solo para cuando de verdad no hay
+    ningún otro dato (Subir PDF)."""
     nombre_original, ruta = item
     _log(f"Procesando {nombre_original}...")
     try:
@@ -708,16 +700,59 @@ def api_auth_me():
 # Rutas Flask
 # ─────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────
+# Estandarización del catálogo de documentos para Bahía/Barú
+# ─────────────────────────────────────────────────────────────
+# Pedido explícito del cliente: cuando alguien entra por el servidor
+# "Bahia" o "Baru", los checklist de "Documentos del paciente" y
+# "Documentos del caso" deben salir SIEMPRE iguales a los de Campbell
+# (mismo catálogo estándar) — para eso, la consulta a
+# `obtener-listatipodocdigitales` (AP/AC) se hace contra la IP/puerto de
+# Campbell en vez de los de Bahía/Barú.
+#
+# OJO — esto NO es una cuenta de servicio ni cambia con quién hizo login:
+# el usuario/clave que se manda en esa llamada sigue siendo SIEMPRE el de
+# la sesión activa (la persona que inició sesión en Bahía/Barú con su
+# propio usuario) — solo se reemplazan IP y puerto, nada más. Por eso
+# esto no toca el login para nada: la autenticación (`api_auth_conectar`,
+# `api_auth_login`) sigue exactamente igual, contra el servidor real que
+# la persona eligió.
+#
+# La pestaña "Rutas / Centro de digitalización" tampoco se toca: sigue
+# consultando siempre el servidor real de la sesión, para cualquier
+# servidor (incluidos Bahía y Barú) — cada uno mantiene sus propias
+# rutas de red reales, que sí son distintas entre sedes.
+IP_ESTANDAR_DOCUMENTOS = "192.168.2.235"
+PUERTO_ESTANDAR_DOCUMENTOS = "3396"
+SERVIDORES_ESTANDARIZADOS = {"BAHIA", "BARU"}  # nombres tal como los devuelve obtener-servidores, en mayúsculas y sin tilde
+
+
+def _ip_puerto_checklist_documentos(sesion_datos):
+    """IP/puerto a usar SOLO para el catálogo de "Documentos del
+    paciente"/"Documentos del caso" (AP/AC) -- el de Campbell si la
+    sesión es de Bahía o Barú, si no, el propio de la sesión tal cual.
+    El usuario/clave nunca se tocan acá, ver nota arriba."""
+    servidor = (sesion_datos.get("servidor") or "").strip().upper()
+    for letra_con, letra_sin in (("Á", "A"), ("É", "E"), ("Í", "I"), ("Ó", "O"), ("Ú", "U")):
+        servidor = servidor.replace(letra_con, letra_sin)
+    if servidor in SERVIDORES_ESTANDARIZADOS:
+        return IP_ESTANDAR_DOCUMENTOS, PUERTO_ESTANDAR_DOCUMENTOS
+    return sesion_datos["ip"], sesion_datos["puerto"]
+
+
 @app.route("/")
 @auth.login_requerido
 def index():
     sesion = auth.sesion_actual()
+    ip_docs, puerto_docs = _ip_puerto_checklist_documentos(sesion)
     items_paciente, error_paciente = auth.get_lista_tipo_documentos_api(
-        sesion["ip"], sesion["puerto"], sesion["usuario"], sesion["password"], "AP"
+        ip_docs, puerto_docs, sesion["usuario"], sesion["password"], "AP"
     )
     items_caso, error_caso = auth.get_lista_tipo_documentos_api(
-        sesion["ip"], sesion["puerto"], sesion["usuario"], sesion["password"], "AC"
+        ip_docs, puerto_docs, sesion["usuario"], sesion["password"], "AC"
     )
+    # Rutas/Centro de digitalización -- SIEMPRE con el servidor real de
+    # la sesión, para cualquier empresa (esto no se estandariza nunca).
     items_rutas, error_rutas = auth.get_centro_digital_api(
         sesion["ip"], sesion["puerto"], sesion["usuario"], sesion["password"], sesion["empresa"]
     )
@@ -1410,11 +1445,9 @@ def _procesar_un_caso(item, sesion_datos, tipos_documento, rutas, carpeta_lote, 
     caso = item
     no_caso = str(caso.get("NoCaso", "")).strip()
     no_factura = str(caso.get("NoFactura", "")).strip()
-    # Este es el identificador que el USUARIO ya trae identificado para
-    # este caso (del Excel, o de lo que escribió a mano) -- el PDF de
-    # salida se nombra SIEMPRE con este valor en el modo "Factura/Caso",
-    # nunca con un número que el propio documento traiga por dentro (ver
-    # `factura_conocida` en `_procesar_un_archivo` para el porqué).
+    # Solo para mostrar en el log/tabla mientras no hay PDF real todavía;
+    # el nombre final del PDF de salida lo pone clasificador.py usando el
+    # número de factura que trae el propio documento, no este valor.
     nombre_referencia = no_factura or no_caso
     rutas_nombres = ", ".join(r.get("nombre", "?") for r in rutas) if rutas else "(ninguna)"
     _log(f"Buscando documentos del caso {no_caso}... (usuario: {sesion_datos.get('usuario','?')}, "

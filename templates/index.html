@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<title>Extractor de Documentos Digitales</title>
+<title>Extractor de Documentos Digitales — v1</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
@@ -264,12 +264,13 @@
   tbody tr:nth-child(even) { background: #fafbfd; }
   tbody tr:hover { background: var(--accent-light); }
 
-  col.col-archivo  { width: 15%; }
-  col.col-factura  { width: 9%; }
-  col.col-doc      { width: 9%; }
-  col.col-estado   { width: 9%; }
-  col.col-obs      { width: 32%; }
-  col.col-pdf      { width: 12%; }
+  col.col-archivo  { width: 13%; }
+  col.col-caso     { width: 8%; }
+  col.col-factura  { width: 8%; }
+  col.col-doc      { width: 8%; }
+  col.col-estado   { width: 8%; }
+  col.col-obs      { width: 28%; }
+  col.col-pdf      { width: 11%; }
 
   td.celda-archivo { font-weight: 600; overflow-wrap: break-word; white-space: normal; }
   td.celda-obs { white-space: normal; overflow-wrap: break-word; color: var(--text-secondary); font-size: 0.68rem; line-height: 1.4; }
@@ -676,7 +677,7 @@
           <div class="tabla-wrap">
             <table id="tablaResultado">
               <colgroup>
-                <col class="col-archivo"><col class="col-factura">
+                <col class="col-archivo"><col class="col-caso"><col class="col-factura">
                 <col class="col-doc"><col class="col-doc"><col class="col-doc">
                 <col class="col-estado"><col class="col-obs"><col class="col-pdf">
               </colgroup>
