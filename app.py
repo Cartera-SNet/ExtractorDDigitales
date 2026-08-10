@@ -707,16 +707,27 @@ def api_auth_me():
 # "Bahia" o "Baru", los checklist de "Documentos del paciente" y
 # "Documentos del caso" deben salir SIEMPRE iguales a los de Campbell
 # (mismo catálogo estándar) — para eso, la consulta a
-# `obtener-listatipodocdigitales` (AP/AC) se hace contra la IP/puerto de
-# Campbell en vez de los de Bahía/Barú.
+# `obtener-listatipodocdigitales` (AP/AC) se hace contra Campbell.
 #
-# OJO — esto NO es una cuenta de servicio ni cambia con quién hizo login:
-# el usuario/clave que se manda en esa llamada sigue siendo SIEMPRE el de
-# la sesión activa (la persona que inició sesión en Bahía/Barú con su
-# propio usuario) — solo se reemplazan IP y puerto, nada más. Por eso
-# esto no toca el login para nada: la autenticación (`api_auth_conectar`,
-# `api_auth_login`) sigue exactamente igual, contra el servidor real que
-# la persona eligió.
+# CAMBIO (v2): al principio se mandaba IP/puerto de Campbell pero con el
+# usuario/clave de la SESIÓN activa (el usuario real de Bahía/Barú) --
+# eso falló en producción con un 500 real para un usuario (daniela.palma)
+# que no tiene cuenta reconocida en el servidor de Campbell. Por eso
+# ahora se usa una CUENTA DE SERVICIO FIJA para esta consulta puntual --
+# la misma para cualquier usuario que entre por Bahía o Barú, así el
+# resultado es de verdad "estándar" (no depende de si la persona que
+# inició sesión tiene o no cuenta en Campbell).
+#
+# Esto sigue sin tocar el login para nada: la autenticación real
+# (`api_auth_conectar`, `api_auth_login`) sigue siendo con el usuario
+# real de la persona, contra el servidor que ella eligió -- esta cuenta
+# fija se usa ÚNICAMENTE para esta llamada puntual al catálogo de
+# documentos, en ningún otro lado.
+#
+# Campbell NO se toca: si alguien entra directo por Campbell, sigue
+# usando su propio usuario/clave para este checklist, exactamente igual
+# que siempre -- la cuenta fija solo entra en juego cuando el servidor
+# de la sesión es Bahía o Barú.
 #
 # La pestaña "Rutas / Centro de digitalización" tampoco se toca: sigue
 # consultando siempre el servidor real de la sesión, para cualquier
@@ -724,33 +735,53 @@ def api_auth_me():
 # rutas de red reales, que sí son distintas entre sedes.
 IP_ESTANDAR_DOCUMENTOS = "192.168.2.235"
 PUERTO_ESTANDAR_DOCUMENTOS = "3396"
+USUARIO_ESTANDAR_DOCUMENTOS = "vfranco"
+PASSWORD_ESTANDAR_DOCUMENTOS = "1508"
 SERVIDORES_ESTANDARIZADOS = {"BAHIA", "BARU"}  # nombres tal como los devuelve obtener-servidores, en mayúsculas y sin tilde
 
 
-def _ip_puerto_checklist_documentos(sesion_datos):
-    """IP/puerto a usar SOLO para el catálogo de "Documentos del
-    paciente"/"Documentos del caso" (AP/AC) -- el de Campbell si la
-    sesión es de Bahía o Barú, si no, el propio de la sesión tal cual.
-    El usuario/clave nunca se tocan acá, ver nota arriba."""
+def _conexion_checklist_documentos(sesion_datos):
+    """(ip, puerto, usuario, password) a usar SOLO para el catálogo de
+    "Documentos del paciente"/"Documentos del caso" (AP/AC) -- los de
+    la cuenta de servicio de Campbell si la sesión es de Bahía o Barú,
+    si no, los propios de la sesión tal cual (incluido Campbell mismo,
+    que sigue usando su propio usuario/clave sin cambios)."""
     servidor = (sesion_datos.get("servidor") or "").strip().upper()
     for letra_con, letra_sin in (("Á", "A"), ("É", "E"), ("Í", "I"), ("Ó", "O"), ("Ú", "U")):
         servidor = servidor.replace(letra_con, letra_sin)
     if servidor in SERVIDORES_ESTANDARIZADOS:
-        return IP_ESTANDAR_DOCUMENTOS, PUERTO_ESTANDAR_DOCUMENTOS
-    return sesion_datos["ip"], sesion_datos["puerto"]
+        return IP_ESTANDAR_DOCUMENTOS, PUERTO_ESTANDAR_DOCUMENTOS, USUARIO_ESTANDAR_DOCUMENTOS, PASSWORD_ESTANDAR_DOCUMENTOS
+    return sesion_datos["ip"], sesion_datos["puerto"], sesion_datos["usuario"], sesion_datos["password"]
 
 
 @app.route("/")
 @auth.login_requerido
 def index():
     sesion = auth.sesion_actual()
-    ip_docs, puerto_docs = _ip_puerto_checklist_documentos(sesion)
+    ip_docs, puerto_docs, usuario_docs, password_docs = _conexion_checklist_documentos(sesion)
     items_paciente, error_paciente = auth.get_lista_tipo_documentos_api(
-        ip_docs, puerto_docs, sesion["usuario"], sesion["password"], "AP"
+        ip_docs, puerto_docs, usuario_docs, password_docs, "AP"
     )
     items_caso, error_caso = auth.get_lista_tipo_documentos_api(
-        ip_docs, puerto_docs, sesion["usuario"], sesion["password"], "AC"
+        ip_docs, puerto_docs, usuario_docs, password_docs, "AC"
     )
+    # Respaldo: si incluso la cuenta de servicio de Campbell fallara (ej.
+    # el servidor está caído, o la cuenta cambió de clave), no se deja el
+    # checklist vacío -- se reintenta con el servidor y usuario PROPIOS
+    # de la sesión. Mejor un catálogo "no estandarizado" que ninguno.
+    ip_propia, puerto_propia = sesion["ip"], sesion["puerto"]
+    if error_paciente and (ip_docs, puerto_docs) != (ip_propia, puerto_propia):
+        _log(f"El catálogo estandarizado (Campbell) falló para 'Documentos del paciente' "
+             f"({error_paciente}) -- se reintenta con el servidor propio de la sesión.", level="warn")
+        items_paciente, error_paciente = auth.get_lista_tipo_documentos_api(
+            ip_propia, puerto_propia, sesion["usuario"], sesion["password"], "AP"
+        )
+    if error_caso and (ip_docs, puerto_docs) != (ip_propia, puerto_propia):
+        _log(f"El catálogo estandarizado (Campbell) falló para 'Documentos del caso' "
+             f"({error_caso}) -- se reintenta con el servidor propio de la sesión.", level="warn")
+        items_caso, error_caso = auth.get_lista_tipo_documentos_api(
+            ip_propia, puerto_propia, sesion["usuario"], sesion["password"], "AC"
+        )
     # Rutas/Centro de digitalización -- SIEMPRE con el servidor real de
     # la sesión, para cualquier empresa (esto no se estandariza nunca).
     items_rutas, error_rutas = auth.get_centro_digital_api(

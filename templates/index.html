@@ -976,8 +976,22 @@ async function comprobarProgresoPendienteAlCargar(){
       cambiarSubModoCasos('manual');
       renderListaCasos();
       const r = data.resumen || {};
-      notaBotonCasos.textContent = `Progreso pendiente: ${r.completados || 0} de ${r.total_registros || casosSeleccionados.length} caso(s) ya procesados.`;
+      const total = r.total_registros || casosSeleccionados.length;
+      const ok = r.completados || 0;
+      const err = r.con_error || 0;
+      const procesados = ok + err;
+      notaBotonCasos.textContent = `Progreso pendiente: ${ok} de ${total} caso(s) ya procesados.`;
       notaBotonCasos.classList.remove('oculto');
+      // Antes esto dejaba el botón en "Reanudar" pero los números de
+      // Total/OK/Error en 0 -- confuso, parecía que no había pasado nada
+      // aunque el botón dijera que sí había progreso guardado. Ahora se
+      // sincronizan también los contadores y la barra apenas se detecta
+      // el progreso, sin esperar a que el usuario le dé clic a "Reanudar".
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statOk').textContent = ok;
+      document.getElementById('statErr').textContent = err;
+      document.getElementById('progresoTexto').textContent = `${procesados} / ${total}`;
+      document.getElementById('progresoRelleno').style.width = (total > 0 ? Math.round((procesados/total)*100) : 0) + '%';
     }
   } catch (err) {
     console.warn('No se pudo consultar progreso pendiente:', err);
