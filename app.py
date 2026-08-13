@@ -24,6 +24,7 @@ Lo que falta para la versión final (a propósito, no está en este v1):
 Arranque: doble clic en iniciar.bat, luego abrir http://localhost:5057
 """
 
+
 import os
 import io
 import csv
