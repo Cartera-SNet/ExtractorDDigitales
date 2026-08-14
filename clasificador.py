@@ -963,6 +963,7 @@ def _revisar_documentos_pegados(img, categorias_pagina):
 
 
 HILOS_OCR = min(2, max(1, (os.cpu_count() or 4)))
+print(f"[arranque] clasificador.py: os.cpu_count()={os.cpu_count()} -> HILOS_OCR={HILOS_OCR}", flush=True)
 
 
 def clasificar_pdf(ruta_pdf: str, debe_detener=None):

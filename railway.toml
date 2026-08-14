@@ -1,0 +1,16 @@
+# railway.toml — configuración de despliegue para Railway
+# Documentación: https://docs.railway.app/reference/config-as-code
+#
+# Railway detecta automáticamente que es una app Python (gracias a
+# requirements.txt + Procfile), así que este archivo es opcional,
+# pero tenerlo deja el comportamiento explícito y reproducible.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300 --graceful-timeout 300"
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

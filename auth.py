@@ -21,6 +21,32 @@ from urllib.parse import urlencode
 import requests as req_lib
 from flask import session, request, jsonify, redirect, url_for
 
+# ─────────────────────────────────────────────────────────────
+# Servidor Barú: ajuste de timeout
+# ─────────────────────────────────────────────────────────────
+# El servidor de Barú responde lento (mediciones reales: 52s-112s por
+# archivo). El timeout genérico de 30s que usan los demás servidores
+# se queda corto y dispara cancelaciones en casos que sí iban a
+# llegar. Aquí solo se sube el TOPE de espera a 180s SOLO para Barú;
+# el resto de servidores sigue con 30s como siempre. NO es un tiempo
+# fijo: si la API responde en 8s, termina en 8s; el 180s es solo el
+# techo a partir del cual se cancela y reintenta.
+_BARU_NORMALIZADO = "BARU"
+_TIMEOUT_BARU_S = 180
+_TIMEOUT_OTROS_S = 30
+
+
+def _servidor_es_baru(servidor):
+    """True si el nombre del servidor (como viene de la sesión) es Barú,
+    sin importar mayúsculas/tildes (igual que ya se hace en
+    `_conexion_checklist_documentos` en app.py)."""
+    if not servidor:
+        return False
+    s = str(servidor).strip().upper()
+    for letra_con, letra_sin in (("Á", "A"), ("É", "E"), ("Í", "I"), ("Ó", "O"), ("Ú", "U")):
+        s = s.replace(letra_con, letra_sin)
+    return s == _BARU_NORMALIZADO
+
 # Se desactivan los warnings de verify=False (los certificados de estos
 # servidores internos a veces no están firmados por una CA pública).
 try:
@@ -66,7 +92,7 @@ def construir_url_archivo_pdf(ip, puerto, usuario, password, codigo_emp, no_caso
     return f"{API_ARCHIVO_PDF}?{urlencode(params)}"
 
 
-def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, rutas_archivos, intentos=3):
+def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, rutas_archivos, intentos=3, servidor=""):
     """Trae el/los archivo(s) reales de un caso — reemplaza la necesidad
     de navegar la carpeta de red a mano: esta API ya busca dentro de las
     rutas indicadas (`rutas_archivos`, una lista — se manda como el
@@ -90,7 +116,17 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
     Confundir estos dos casos fue justo lo que pasó en un lote real: 24
     casos quedaron marcados "no encontrado" sin saber si de verdad no
     existían ahí o si fue la red — con esto, un tropiezo de red pasajero
-    ya no cuenta como si el documento no existiera."""
+    ya no cuenta como si el documento no existiera.
+
+    Parámetro `servidor` (opcional): si es Barú, se usa un timeout de
+    180s en vez de los 30s genéricos. NO es un tiempo fijo de espera: si
+    la API responde en 8s, la llamada termina en 8s. El 180s es solo el
+    techo a partir del cual se cancela y se reintenta. Esto es por la
+    lentitud propia del servidor de Barú (52s-112s por archivo en
+    producción) — con el tope viejo de 30s se cancelaban casos que sí
+    iban a llegar. Para los demás servidores, el comportamiento es
+    EXACTAMENTE el mismo de antes: 30s, sin más cambios.
+    """
     params = [
         ("IpConexion", ip),
         ("BdConexion", "bd"),
@@ -104,11 +140,13 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
         if ruta:
             params.append(("RutasArchivos", ruta))
 
+    timeout_actual = _TIMEOUT_BARU_S if _servidor_es_baru(servidor) else _TIMEOUT_OTROS_S
+
     ultimo_error_tecnico = None
     resp = None
     for intento in range(1, intentos + 1):
         try:
-            resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=30, verify=False)
+            resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=timeout_actual, verify=False)
             break  # se conectó y hubo respuesta (sea cual sea el código) -- ya no hay que reintentar la conexión
         except req_lib.exceptions.RequestException as e:
             ultimo_error_tecnico = e
@@ -143,7 +181,7 @@ def get_archivo_pdf_api(ip, puerto, usuario, password, codigo_emp, no_caso, ruta
         for intento in range(2, intentos + 1):
             time.sleep(1.5 * (intento - 1))
             try:
-                resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=30, verify=False)
+                resp = req_lib.get(API_ARCHIVO_PDF, params=params, timeout=timeout_actual, verify=False)
             except req_lib.exceptions.RequestException:
                 continue
             if resp.status_code == 404:

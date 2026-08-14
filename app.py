@@ -24,7 +24,6 @@ Lo que falta para la versión final (a propósito, no está en este v1):
 Arranque: doble clic en iniciar.bat, luego abrir http://localhost:5057
 """
 
-
 import os
 import io
 import csv
@@ -295,13 +294,59 @@ def _limpiar_carpeta(carpeta: Path):
             shutil.rmtree(item)
 
 
-# Cuántos archivos se procesan a la vez en un mismo lote. Cada archivo ya
-# reparte sus propias páginas entre varios hilos dentro de clasificador.py
-# (clf.HILOS_OCR), así que aquí se usa un número más chico para no
-# disparar demasiados procesos de Tesseract al mismo tiempo — en una
-# máquina con muchos núcleos (pensando en lotes de 100-300+ casos) esto
-# igual deja bastante paralelismo real.
-HILOS_ARCHIVOS = min(2, max(1, (os.cpu_count() or 4) // 4))
+# Cuántos CASOS se procesan a la vez en un mismo lote (cada uno: buscar
+# en las rutas + descargar + clasificar). ANTES este número se calculaba
+# como si fuera trabajo de CPU (dividido entre 4, tope de 2) -- pero en
+# la práctica, la mayor parte del tiempo de un caso es ESPERA DE RED
+# (el servidor de archivos del cliente respondiendo, a veces 30-70+
+# segundos por ruta, visto en producción) -- mientras un caso espera
+# eso, el CPU está libre y no hace nada, así que sí se puede tener MÁS
+# casos en paralelo que núcleos, sin competir de verdad por el
+# procesador -- el trabajo de CPU real (el OCR) tiene su propio límite
+# aparte, en clf.HILOS_OCR, que ese sí se queda atado a los núcleos.
+def _nucleos_reales_del_contenedor():
+    """os.cpu_count() en un contenedor devuelve los núcleos de la MÁQUINA
+    FÍSICA de fondo, no el límite real que el plan de Railway le puso a
+    ESTE contenedor -- confirmado en producción: devolvía 32, un número
+    que casi seguro no coincide con lo que Railway factura/permite. Los
+    límites reales de CPU en un contenedor Linux se controlan por
+    "cgroups", que sí reflejan lo que el plan de verdad asigna. Se leen
+    directo del sistema de archivos (sin librerías nuevas):
+      - cgroups v2 (lo más común hoy): /sys/fs/cgroup/cpu.max
+        formato: "<cuota> <periodo>" en microsegundos, ej. "150000 100000"
+        significa 1.5 núcleos permitidos. Si dice "max", no hay límite
+        explícito (contenedor con acceso a todos los núcleos del host).
+      - cgroups v1 (sistemas más viejos): cpu.cfs_quota_us / cpu.cfs_period_us
+        en dos archivos separados, mismo cálculo.
+    Si no se puede leer ninguno (no es Linux, o el archivo no existe),
+    se cae de vuelta a os.cpu_count() como ya se hacía antes."""
+    try:
+        ruta_v2 = "/sys/fs/cgroup/cpu.max"
+        if os.path.exists(ruta_v2):
+            contenido = open(ruta_v2).read().split()
+            cuota, periodo = contenido[0], contenido[1]
+            if cuota != "max":
+                return max(1, int(cuota) / int(periodo)), "cgroup v2"
+        ruta_cuota_v1 = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
+        ruta_periodo_v1 = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
+        if os.path.exists(ruta_cuota_v1) and os.path.exists(ruta_periodo_v1):
+            cuota = int(open(ruta_cuota_v1).read().strip())
+            periodo = int(open(ruta_periodo_v1).read().strip())
+            if cuota > 0:
+                return max(1, cuota / periodo), "cgroup v1"
+    except Exception as e:
+        print(f"[arranque] no se pudo leer el limite real de cgroups: {e}", flush=True)
+    return (os.cpu_count() or 4), "os.cpu_count() (sin limite de cgroup detectado)"
+
+
+_nucleos_reales, _fuente_nucleos = _nucleos_reales_del_contenedor()
+print(f"[arranque] limite REAL de CPU del contenedor: {_nucleos_reales:.2f} nucleos "
+      f"(fuente: {_fuente_nucleos}) -- este es el numero que de verdad importa, "
+      f"no os.cpu_count()={os.cpu_count()}", flush=True)
+
+HILOS_ARCHIVOS = min(6, max(2, round(_nucleos_reales * 2)))
+print(f"[arranque] HILOS_ARCHIVOS={HILOS_ARCHIVOS} (basado en {_nucleos_reales:.2f} nucleos reales, "
+      f"fuente: {_fuente_nucleos})", flush=True)
 
 
 def _log_detalle_resultado(nombre_original, paginas, resumen):
@@ -1404,6 +1449,7 @@ def _obtener_documentos_caso(caso, sesion_datos, tipos_documento, rutas, clave_l
             contenido, es_binario, content_type = auth.get_archivo_pdf_api(
                 sesion_datos["ip"], sesion_datos["puerto"], sesion_datos["usuario"],
                 sesion_datos["password"], sesion_datos["empresa"], no_caso, [ruta_red],
+                servidor=sesion_datos.get("servidor", ""),
             )
             ruta_salida = carpeta_temp / f"{no_caso}_{idx}_{datetime.now().strftime('%H%M%S%f')}.pdf"
             resultado = _procesar_respuesta_archivo_pdf(contenido, es_binario, content_type, ruta_salida)
